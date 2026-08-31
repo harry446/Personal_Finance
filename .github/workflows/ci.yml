@@ -25,6 +25,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/personal_finance?schema=public
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      AUTH_GOOGLE_ID: ci-google-client
+      AUTH_GOOGLE_SECRET: ci-google-secret
+      AUTH_SECRET: ci-auth-secret-not-for-production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

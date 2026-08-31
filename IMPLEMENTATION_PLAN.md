@@ -105,7 +105,7 @@ If product scope changes, amend this document and its architecture references be
 
 **Required deliverables.**
 
-- Categories and transactions Prisma models/enums, ownership constraints, and migrations.
+- Transactions Prisma models/enums, ownership constraints, and migrations; the user-owned category model is established in M1 so first-sign-in bootstrap can create default category records.
 - Category create, rename, active-list, archive, and normalized reactivation behavior.
 - Manual expense/refund create, edit, recent-list, and confirmed hard-delete actions and UI.
 - Zod validation, CAD/`en-CA` presentation, mutation revalidation, and ownership/ledger browser and integration tests.
@@ -114,7 +114,7 @@ If product scope changes, amend this document and its architecture references be
 
 **Ordered implementation steps.**
 
-1. Add Prisma enums/models and migrations for categories and transactions, including user ownership, active/archive state, normalized-name uniqueness, foreign keys, transaction type, source, positive-cent check, and `transaction_date`.
+1. Add Prisma enums/models and migrations for transactions, including user ownership, category foreign keys, transaction type, source, positive-cent check, and `transaction_date`. Retain and extend the M1 category ownership, active/archive, and normalized-name constraints as needed; do not recreate the category table.
 2. Implement category create, rename, list, archive, and normalized reactivation service/actions. A matching active category returns a safe conflict; a matching archived row reactivates instead of creating a duplicate.
 3. Implement manual expense/refund create, edit, recent list, and confirmation-protected hard delete actions/UI. The active, owned category must be verified on every create and edit.
 4. Validate dates, descriptions, types, categories, notes, and positive integer cents with Zod; format values in CAD/`en-CA`.

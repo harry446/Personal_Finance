@@ -12,6 +12,7 @@ tmp/
 # Dependencies and build output
 node_modules/
 .next/
+.next-playwright/
 dist/
 build/
 
