@@ -22,3 +22,14 @@ build/
 .DS_Store
 Thumbs.db
 .vscode/
+
+/src/generated/prisma
+# Test output and local database artifacts
+coverage/
+playwright-report/
+test-results/
+prisma/dev.db
+prisma/dev.db-journal
+# Generated framework files
+next-env.d.ts
+*.tsbuildinfo

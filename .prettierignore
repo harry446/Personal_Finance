@@ -1,0 +1,15 @@
+node_modules
+.next
+coverage
+playwright-report
+test-results
+src/generated/prisma
+.audit-figma
+.audit-figma-*
+.tmp
+tmp
+package-lock.json
+next-env.d.ts
+MVP_ARCHITECTURE.md
+PRODUCT_DESIGN_DOCUMENT.md
+IMPLEMENTATION_PLAN.md

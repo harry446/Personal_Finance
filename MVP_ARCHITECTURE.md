@@ -14,7 +14,7 @@ Use one TypeScript **Next.js** application (App Router) containing the browser U
 | AI extraction | Official OpenAI JavaScript SDK, Responses API, structured JSON output | The API accepts image and file input, including PDFs; a strict schema makes candidate creation predictable. Send requests with `store: false` and do not use the Files API. |
 | Styling/components | Existing project conventions; otherwise Tailwind CSS plus a small accessible component set | Fast to implement and easy to match to the Figma flows without creating a separate design system. |
 
-Use integer cents (`amount_cents`) for all money, `DATE` for a transaction date, and UTC timestamps for audit fields. Do not use floating-point money or a time-of-day to determine reporting months.
+MVP accepts and presents **Canadian dollars only**. Format currency with the `en-CA` locale and `CAD` currency code. Store every amount as positive integer cents (`amount_cents`); transaction type supplies the accounting sign. Use `DATE` for a transaction date and UTC timestamps for audit fields. Do not use floating-point money or a time-of-day to determine reporting months. RMB/Chinese presentation and multi-currency are future scope.
 
 ## 2. High-level system architecture
 
@@ -55,12 +55,13 @@ All business tables have a `user_id` unless their parent already establishes own
 | `users` | `id UUID PK`, `email CITEXT UNIQUE`, `name`, `image_url`, `budget_mode_enabled BOOL`, timestamps | Created/upserted after Google sign-in. Auth.js tables (`accounts`, `sessions`, `verification_tokens`) are also owned by the adapter. |
 | `categories` | `id`, `user_id FK`, `name`, `normalized_name`, `archived_at NULL`, timestamps; `UNIQUE(user_id, normalized_name)` | `normalized_name = lower(trim(name))`. A matching archived row is reactivated; an active match returns a conflict. `archived_at` is the soft-delete marker. |
 | `transactions` | `id`, `user_id FK`, `category_id FK`, `transaction_date DATE`, `type ENUM(expense, refund)`, `amount_cents INT CHECK (>0)`, `description`, `notes NULL`, `source ENUM(manual, import)`, `import_batch_id NULL FK`, timestamps | Amount is always positive; `type` determines its sign in calculations. Delete is a hard `DELETE`. Category FK is restrictive so history cannot lose its category. |
-| `budgets` | `id`, `user_id FK`, `category_id FK`, `monthly_amount_cents INT CHECK (>0)`, `mode ENUM(monthly_reset, rollover)`, `start_month DATE`, `active BOOL`, timestamps; one active configuration per `(user_id, category_id)` | `start_month` must be the first day of a month. A budget belongs to an active category when created; preserve it if that category is later archived, but hide it from normal budget setup. |
+| `budgets` | `id`, `user_id FK`, `category_id FK`, `active BOOL`, timestamps; `UNIQUE(user_id, category_id)` | Stable budget identity and ownership. A budget can be created only for an active owned category. Preserve it if that category is later archived, but hide it from normal budget setup. Disabling preserves all configurations and historical calculations. |
+| `budget_configurations` | `id`, `budget_id FK`, `effective_month DATE`, `monthly_amount_cents INT CHECK (>0)`, `mode ENUM(monthly_reset, rollover)`, timestamps; `UNIQUE(budget_id, effective_month)` | `effective_month` is the first day of a calendar month. This is the immutable history of budget settings: creating or editing a current-month budget upserts the configuration row for that month; prior-month rows are never overwritten. |
 | `import_batches` | `id`, `user_id FK`, `status ENUM(processing, ready_for_review, approved, failed)`, `file_count`, `candidate_count`, `approved_count`, `model`, `failure_code NULL`, `failure_message_safe NULL`, timestamps | No source-file column or blob. It is the durable review/history shell. |
 | `candidate_transactions` | `id`, `import_batch_id FK`, `ordinal`, `transaction_date NULL`, `type NULL`, `amount_cents NULL`, `description NULL`, `category_id NULL FK`, `notes NULL`, `suggested_category_text NULL`, `review_state ENUM(pending, selected, excluded, approved)`, `saved_transaction_id NULL FK`, timestamps | Candidate fields may be incomplete; rows are not ledger entries. Candidate categories must also belong to the batch user and be active when approved. |
 | `extraction_logs` | `id`, `import_batch_id FK UNIQUE`, `provider_request_id NULL`, `model`, `status`, `raw_output_ciphertext NULL`, `error_code NULL`, `duration_ms`, `expires_at`, timestamps | Store only the response required for debugging/audit, encrypted at rest; automatically purge raw ciphertext after 30 days. Retain non-sensitive request metadata only as long as import history is useful. Never store file bytes. |
 
-Recommended indexes: `transactions(user_id, transaction_date DESC)`, `transactions(user_id, category_id, transaction_date)`, `categories(user_id, archived_at)`, `import_batches(user_id, created_at DESC)`, `candidate_transactions(import_batch_id, ordinal)`, and `budgets(user_id, category_id)`.
+Recommended indexes: `transactions(user_id, transaction_date DESC)`, `transactions(user_id, category_id, transaction_date)`, `categories(user_id, archived_at)`, `import_batches(user_id, created_at DESC)`, `candidate_transactions(import_batch_id, ordinal)`, `budgets(user_id, category_id)`, and `budget_configurations(budget_id, effective_month DESC)`.
 
 The server creates default categories in the same database transaction as first-time user setup, using `normalized_name` to make the operation idempotent.
 
@@ -74,7 +75,7 @@ Use server-only service functions underneath either Next.js Server Actions (form
 | Dashboard | `GET /api/dashboard?month=YYYY-MM` | Require session; aggregate only `transactions.user_id = session.user.id`. |
 | Transactions | create, list/recent, update `/:id`, delete `/:id` | Require session; lookup by both transaction ID and user ID; verify category ownership/active state on create/update. |
 | Categories | list active/all, create, rename, archive, reactivate | Require session; all lookups and uniqueness logic are user-scoped. Do not archive a category belonging to another user. |
-| Budgets | list, upsert category budget, disable | Require session; verify category ownership, active status, and date/mode input. Respect `budget_mode_enabled` for UI reads; configurations may exist while mode is off. |
+| Budgets | list, upsert current-month category configuration, disable | Require session; verify category ownership, active status, and date/mode input. Upsert only the configuration whose `effective_month` is the current calendar month; prior-month configurations are immutable. Respect `budget_mode_enabled` for UI reads; configurations may exist while mode is off. |
 | Imports | `POST /api/imports` multipart, `GET /api/imports`, `GET /api/imports/:id`, review-row update, approve | Require session; batch and every candidate are retrieved through a user-scoped batch lookup. The multipart route is server-only and is the sole OpenAI caller. |
 | Import retry | recreate import after new upload | Require session. A failed extraction cannot be retried from the old batch because no source file is kept. The UI starts a new batch; it may link its display to the failed batch only as non-sensitive metadata. |
 
@@ -107,12 +108,14 @@ category_net(C,M) = Σ expenses(C,M) − Σ refunds(C,M)
 
 `category_net` is both category spending and budget consumption. Thus a $40 refund in Groceries in August reduces August’s Groceries spending and August’s budget usage by $40, even if the original purchase occurred in July. Refunds are never linked to an original transaction in MVP.
 
-For a monthly-reset budget with limit `L`, `usage(M) = category_net(C,M)` and `remaining(M) = L − usage(M)`. Keep the raw value: a refund can produce negative usage / more than `L` remaining. The UI may show that as a credit rather than falsely clamping it.
+For a monthly-reset configuration applicable to month `M`, `usage(M) = category_net(C,M)` and `remaining(M) = configured_limit(M) − usage(M)`. A configuration is applicable for a month when it is the most recent row whose `effective_month` is on or before that month. Keep the raw value: a refund can produce negative usage / more than the configured limit remaining. The UI may show that as a credit rather than falsely clamping it.
 
-For a rollover budget beginning at `start_month S`, with `n` inclusive months from `S` through `M`:
+For a rollover configuration applicable to `M`, calculate from the current rollover window. That window begins at its first rollover configuration, or in the month immediately following the most recent monthly-reset configuration. Sum the monthly allowance from the configuration applicable to every month in that window, then subtract category net spending over those same months:
 
 ```text
-raw_available(M) = n × L − Σ category_net(C, each month S..M)
+rollover_window_start(M) = first rollover configuration month after latest reset, or first rollover configuration month
+raw_available(M) = Σ configured_limit(each month in rollover_window_start..M)
+                   − Σ category_net(C, each month in rollover_window_start..M)
 display_available(M) = max(0, raw_available(M))
 overage(M) = max(0, −raw_available(M))
 ```
@@ -124,7 +127,7 @@ Do not discard a negative raw balance: it is what causes an overage to reduce la
 - $1,000 spent in March → March raw available is −$100 (show $0 available and $100 over); April raw available is $200.
 - A $75 April refund reduces April spending by $75 and increases April’s raw availability by $75.
 
-Months before `start_month` do not contribute to a budget. Category archival does not remove past transactions or alter calculations. A hard-deleted transaction immediately disappears from all dashboard and budget queries.
+Months before `rollover_window_start` do not contribute to a rollover balance. Category archival does not remove past transactions or alter calculations. A hard-deleted transaction immediately disappears from all dashboard and budget queries.
 
 ## 7. Security, privacy, and observability
 
@@ -138,22 +141,19 @@ Months before `start_month` do not contribute to a budget. Category archival doe
 
 ## 8. Implementation sequence
 
-1. **Foundation:** Next.js app, PostgreSQL/Prisma migrations, Auth.js Google SSO, session helpers, user bootstrap, and user-scoped query helpers.
-2. **Ledger:** category defaults and archive/reactivate behavior; manual transaction form; transaction edit and hard delete; server validation and ownership tests.
-3. **Dashboard:** month selector/current-month default, totals, category aggregation, trend, and recent transactions. Build exclusively from ledger queries.
-4. **Imports:** batch/candidate schema, temporary multipart handler, Responses API structured extraction, review UI, atomic approval, import history, retention cleanup, and failure/re-upload UX.
-5. **Budgets:** budget mode setting, monthly-reset calculations/UI, rollover calculation tests, then rollover UI.
-6. **Hardening:** access-control tests, input/error redaction, rate limits, backups, and observability alerts.
+1. **M0 — Foundation:** Next.js app, Tailwind, accessible primitives, PostgreSQL/Prisma configuration and empty-database migration workflow, quality tooling, CI, `.env.example`, and setup/deployment documentation. No product features or authentication.
+2. **M1 — Identity and isolation:** Auth.js Google SSO, session helpers, user bootstrap, default categories, and user-scoped query helpers.
+3. **M2 — Ledger:** category archive/reactivate behavior; manual transaction form; transaction edit and hard delete; server validation and ownership tests.
+4. **M3 — Dashboard:** month selector/current-month default, totals, category aggregation, trend, and recent transactions. Build exclusively from ledger queries.
+5. **M4–M5 — Imports:** batch/candidate schema, review UI, then temporary multipart handling, Responses API structured extraction, retention cleanup, and failure/re-upload UX.
+6. **M6 — Budgets:** budget mode setting, historical configurations, monthly-reset calculations/UI, rollover calculation tests, then rollover UI.
+7. **M7 — Hardening:** access-control tests, input/error redaction, rate limits, backups, privacy notice, and observability alerts.
 
 Foundation precedes every other phase. Ledger and category work can share a phase but category constraints must land before transaction mutations. Dashboard can proceed once read models and transaction fixtures exist. Import UI and OpenAI integration can be developed in parallel after the schema/service contracts are agreed. Budgets should wait until ledger calculations are stable.
 
 ## 9. Open questions and recommendations
 
-Only these decisions need product-owner confirmation before implementation:
-
-1. **Currency presentation:** choose the single MVP currency and locale (for example, CAD / `en-CA`). Store cents; multi-currency remains out of scope.
-2. **Extraction-log access:** confirm a fixed 30-day encrypted raw-output retention window, with metadata retained for 90 days or for the life of the batch. The recommended default is 30 days of encrypted content, then metadata only.
-3. **Budget reconfiguration semantics:** when a user changes a budget mid-month, recommend applying the new configuration prospectively from the next calendar month; this avoids silently rewriting historical availability. A user can choose a `start_month` for a new configuration if retrospective behavior is wanted.
+The product decisions required for MVP are confirmed: CAD/`en-CA` only, encrypted raw extraction output is purged after 30 days while non-sensitive batch metadata remains, and changes to current-month budgets immediately upsert the configuration row for the current month without proration. Those changes never overwrite prior-month configurations. Product discovery may introduce new questions later, but none block implementation.
 
 ## Recommended MVP architecture
 
