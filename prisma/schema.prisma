@@ -16,6 +16,7 @@ model User {
   accounts      Account[]
   categories    Category[]
   sessions      Session[]
+  transactions  Transaction[]
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -70,8 +71,39 @@ model Category {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
 
   @@unique([userId, normalizedName])
   @@index([userId, archivedAt])
   @@map("categories")
+}
+
+enum TransactionType {
+  EXPENSE @map("expense")
+  REFUND  @map("refund")
+}
+
+enum TransactionSource {
+  MANUAL @map("manual")
+  IMPORT @map("import")
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  userId          String            @map("user_id")
+  categoryId      String            @map("category_id")
+  transactionDate DateTime          @db.Date @map("transaction_date")
+  type            TransactionType
+  amountCents     Int               @map("amount_cents")
+  description     String
+  notes           String?
+  source          TransactionSource @default(MANUAL)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, transactionDate])
+  @@index([categoryId])
+  @@map("transactions")
 }

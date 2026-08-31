@@ -21,10 +21,22 @@ export const DEFAULT_CATEGORY_NAMES = [
   'Other',
 ] as const;
 
-const categoryNameSchema = z.string().trim().min(1).max(80);
+export const categoryNameSchema = z.string().trim().min(1).max(80);
 
 export function normalizeCategoryName(value: string) {
   return categoryNameSchema.parse(value).toLocaleLowerCase('en-CA');
+}
+
+export type CategoryCreateResolution = 'create' | 'reactivate' | 'conflict';
+
+export function resolveCategoryCreate(
+  matchingCategory: { archivedAt: Date | null } | null,
+): CategoryCreateResolution {
+  if (!matchingCategory) {
+    return 'create';
+  }
+
+  return matchingCategory.archivedAt ? 'reactivate' : 'conflict';
 }
 
 export function createDefaultCategoryData(userId: string) {

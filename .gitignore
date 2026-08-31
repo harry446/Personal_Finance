@@ -34,3 +34,4 @@ prisma/dev.db-journal
 # Generated framework files
 next-env.d.ts
 *.tsbuildinfo
+e2e/.auth/

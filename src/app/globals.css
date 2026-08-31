@@ -1,8 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
 @import 'tailwindcss';
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f6f7f4;
+  --foreground: #0e1317;
+  --pf-action-primary: #056e61;
+  --pf-bg-canvas: #f6f7f4;
+  --pf-bg-surface: #fffffb;
+  --pf-border-default: #ebf0ed;
+  --pf-status-expense: #c24033;
+  --pf-status-refund: #056e61;
+  --pf-text-primary: #0e1317;
+  --pf-text-secondary: #66757a;
 }
 
 * {
@@ -17,10 +26,17 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Manrope', Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 :focus-visible {
-  outline: 3px solid #059669;
+  outline: 3px solid #056e61;
   outline-offset: 3px;
 }

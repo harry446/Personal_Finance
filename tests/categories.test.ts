@@ -4,6 +4,7 @@ import {
   createDefaultCategoryData,
   DEFAULT_CATEGORY_NAMES,
   normalizeCategoryName,
+  resolveCategoryCreate,
 } from '@/lib/categories';
 
 describe('default category bootstrap data', () => {
@@ -12,6 +13,14 @@ describe('default category bootstrap data', () => {
       'coffee and snacks',
     );
     expect(() => normalizeCategoryName('   ')).toThrow();
+  });
+
+  it('resolves category creation against absent, active, and archived matches', () => {
+    expect(resolveCategoryCreate(null)).toBe('create');
+    expect(resolveCategoryCreate({ archivedAt: null })).toBe('conflict');
+    expect(
+      resolveCategoryCreate({ archivedAt: new Date('2026-08-31T00:00:00Z') }),
+    ).toBe('reactivate');
   });
 
   it('contains one normalized active default for each suggested category', () => {

@@ -1,6 +1,6 @@
 # Personal Finance
 
-A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 and M1.
+A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0, M1, and M2.
 
 ## Technology
 
@@ -9,7 +9,7 @@ A private personal-finance spending tracker for expenses, refunds, reviewed docu
 - Vitest + Testing Library for units, Playwright for browser smoke tests
 - GitHub Actions quality gate with a PostgreSQL service
 
-M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. Ledger CRUD, dashboards, imports, and budgets remain intentionally deferred to their respective milestones.
+M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. Dashboards, imports, and budgets remain intentionally deferred to their respective milestones.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ M1 provides Google OAuth, user bootstrap, default categories, and user-isolation
 4. Apply migrations to an empty local database: `npm run prisma:migrate`.
 5. Start the application: `npm run dev`.
 
-The generated `prisma/migrations/20260829180000_baseline` migration is deliberately empty. The following M1 migration creates the Auth.js adapter tables, user-owned default-category table, and their ownership constraints.
+The generated `prisma/migrations/20260829180000_baseline` migration is deliberately empty. The M1 migrations create Auth.js adapter tables and the user-owned category table; the M2 migration adds the positive-cents transaction ledger with user/category foreign keys and restrictive category deletion.
 
 ## Google OAuth configuration (M1)
 
@@ -55,6 +55,19 @@ Google may reject Playwright-controlled browsers as insecure. Verify the actual 
 
 The normal-Chrome result is the authoritative M1 Google OAuth acceptance evidence. Database integration tests separately prove bootstrap idempotence and user isolation.
 
+## Manual ledger and categories (M2)
+
+After sign-in, `/app` opens the Transactions workspace. M2 provides:
+
+- Manual expense and refund creation, editing, recent-ledger filtering, and confirmed permanent deletion.
+- Positive integer-cents storage, Canadian-dollar formatting, required transaction date/description/category/type, and Zod validation on every mutation.
+- User-owned category creation, renaming, archive confirmation, restoration, and normalized-name reactivation without duplicates.
+- Historical category references for archived categories; archived categories are unavailable for new transactions.
+
+### M2 browser verification
+
+`npm run test:e2e` requires `DATABASE_URL` and runs both signed-out and signed-in browser coverage. It creates a temporary PostgreSQL user, two categories, and a database session for the test browser, then removes them afterward. This verifies the ledger happy path, server validation message, category archive/recovery path, and protected-route behavior without attempting to automate Google OAuth.
+
 ## Quality commands
 
 | Command                    | Purpose                                                                                                    |
@@ -65,8 +78,8 @@ The normal-Chrome result is the authoritative M1 Google OAuth acceptance evidenc
 | `npm run test`             | Run Vitest unit tests.                                                                                     |
 | `npm run test:integration` | Validate/deploy migrations and run database-backed bootstrap and isolation tests; requires `DATABASE_URL`. |
 | `npm run build`            | Create an optimized production build.                                                                      |
-| `npm run test:e2e`         | Run isolated unauthenticated Playwright smoke checks.                                                      |
-| `npm run test:all`         | Run the non-database quality suite, including the browser test.                                            |
+| `npm run test:e2e`         | Run signed-out plus database-seeded authenticated Playwright coverage; requires `DATABASE_URL`.            |
+| `npm run test:all`         | Run formatting, lint, types, unit tests, production build, and browser tests; requires `DATABASE_URL`.     |
 
 Before running browser tests locally, install the matching browser once with `npx playwright install chromium`.
 
