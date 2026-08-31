@@ -63,7 +63,7 @@ All business tables have a `user_id` unless their parent already establishes own
 
 Recommended indexes: `transactions(user_id, transaction_date DESC)`, `transactions(user_id, category_id, transaction_date)`, `categories(user_id, archived_at)`, `import_batches(user_id, created_at DESC)`, `candidate_transactions(import_batch_id, ordinal)`, `budgets(user_id, category_id)`, and `budget_configurations(budget_id, effective_month DESC)`.
 
-The server creates default categories in the same database transaction as first-time user setup, using `normalized_name` to make the operation idempotent.
+The server creates default categories in the same database transaction as first-time user setup, using `normalized_name` to make the operation idempotent. The category table is created in M1 solely to support this bootstrap; M2 owns all user-facing category create, archive, and reactivation mutations, with `archived_at` as the canonical lifecycle marker.
 
 ## 4. Server/API boundary
 

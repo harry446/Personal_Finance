@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 
 export function listActiveCategoriesForUser(userId: string) {
   return db.category.findMany({
-    where: { userId, isActive: true },
+    where: { userId, archivedAt: null },
     orderBy: { name: 'asc' },
   });
 }

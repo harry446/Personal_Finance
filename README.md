@@ -47,13 +47,13 @@ If the server reports **“State cookie was missing”**:
 3. Clear site data for `localhost` in the browser, then retry from `http://localhost:3000`. Do not start the Google flow from one local origin and return to another.
 4. Keep `AUTH_SECRET` stable for the entire sign-in attempt; do not regenerate or edit it between starting Google sign-in and its callback.
 
-### Authenticated browser check
+### Google OAuth acceptance check
 
-The normal browser suite verifies the unauthenticated sign-in and redirect states. After completing Google OAuth setup, capture an authenticated local-browser state outside Git and run the protected-shell check:
+`npm run test:e2e` verifies the unauthenticated sign-in screen and protected-route redirect against an isolated test server. It deliberately does not drive Google OAuth.
 
-1. Run `npm run dev`, sign in at `http://localhost:3000`, and save a Playwright storage state file through Playwright's codegen or your team test harness.
-2. Set `E2E_AUTH_STORAGE_STATE` to that file's absolute path and run `npm run test:e2e`.
-3. Keep the storage-state file outside the repository; it contains an authenticated session cookie.
+Google may reject Playwright-controlled browsers as insecure. Verify the actual Google OAuth journey manually in a normal Chrome browser at `http://localhost:3000`: select **Continue with Google**, complete sign-in, and confirm the protected `/app` shell plus sign-out control appear. Record the date, application URL, and outcome in the M1 handoff; never record cookies, provider tokens, or OAuth credentials.
+
+The normal-Chrome result is the authoritative M1 Google OAuth acceptance evidence. Database integration tests separately prove bootstrap idempotence and user isolation.
 
 ## Quality commands
 
@@ -65,7 +65,7 @@ The normal browser suite verifies the unauthenticated sign-in and redirect state
 | `npm run test`             | Run Vitest unit tests.                                                                                     |
 | `npm run test:integration` | Validate/deploy migrations and run database-backed bootstrap and isolation tests; requires `DATABASE_URL`. |
 | `npm run build`            | Create an optimized production build.                                                                      |
-| `npm run test:e2e`         | Run the Playwright Chromium smoke test.                                                                    |
+| `npm run test:e2e`         | Run isolated unauthenticated Playwright smoke checks.                                                      |
 | `npm run test:all`         | Run the non-database quality suite, including the browser test.                                            |
 
 Before running browser tests locally, install the matching browser once with `npx playwright install chromium`.

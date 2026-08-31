@@ -66,12 +66,12 @@ model Category {
   userId         String   @map("user_id")
   name           String
   normalizedName String   @map("normalized_name")
-  isActive       Boolean  @default(true) @map("is_active")
+  archivedAt     DateTime? @map("archived_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, normalizedName])
-  @@index([userId, isActive])
+  @@index([userId, archivedAt])
   @@map("categories")
 }

@@ -75,7 +75,7 @@ If product scope changes, amend this document and its architecture references be
 **Required deliverables.**
 
 - Auth.js Google provider, Prisma adapter schema/migration, typed session handling, callback route, sign-in screen, authenticated shell, and sign-out control.
-- Idempotent user bootstrap that creates one owned user record and the default active categories once.
+- Idempotent user bootstrap that creates one owned user record and default categories once, with `archived_at` set to `NULL`.
 - Server-only `requireCurrentUser()` helper and a reusable user-scoped data-access pattern.
 - Authentication, bootstrap, and cross-user isolation tests.
 
@@ -87,9 +87,9 @@ If product scope changes, amend this document and its architecture references be
 2. Create an idempotent first-sign-in bootstrap transaction that creates the user and default active categories exactly once using normalized names.
 3. Implement a server-only `requireCurrentUser()` helper and user-scoped database access pattern. Protected paths/actions must use it before touching business data.
 4. Add an explicit unauthenticated state and safe error handling; do not leak email addresses, tokens, or provider details.
-5. Test sign-in configuration, bootstrap idempotence, authentication redirects, and cross-user denial for top-level resources.
+5. Test sign-in configuration, bootstrap idempotence, authentication redirects, and cross-user denial for top-level resources. Use automated browser tests for the unauthenticated sign-in and redirect paths; complete the real Google OAuth and authenticated-shell acceptance check manually in normal Chrome because providers may reject automated browsers.
 
-**Required tests.** Unit tests for session/user helper and default-category normalization; integration tests for two isolated users; browser tests for unauthenticated sign-in and authenticated shell; migration apply on empty database.
+**Required tests.** Unit tests for session/user helper and default-category normalization; integration tests for two isolated users; browser tests for the unauthenticated sign-in screen and protected-route redirect; manual normal-Chrome Google OAuth sign-in and authenticated-shell acceptance check; migration apply on empty database.
 
 **Exit criteria.** A real Google user can sign in, gets one user record plus the default category set, and cannot read or mutate another user’s data.
 
@@ -114,8 +114,8 @@ If product scope changes, amend this document and its architecture references be
 
 **Ordered implementation steps.**
 
-1. Add Prisma enums/models and migrations for transactions, including user ownership, category foreign keys, transaction type, source, positive-cent check, and `transaction_date`. Retain and extend the M1 category ownership, active/archive, and normalized-name constraints as needed; do not recreate the category table.
-2. Implement category create, rename, list, archive, and normalized reactivation service/actions. A matching active category returns a safe conflict; a matching archived row reactivates instead of creating a duplicate.
+1. Add Prisma enums/models and migrations for transactions, including user ownership, category foreign keys, transaction type, source, positive-cent check, and `transaction_date`. Retain and extend the M1 category ownership, `archived_at` lifecycle, and normalized-name constraints as needed; do not recreate the category table.
+2. Implement category create, rename, list, archive, and normalized reactivation service/actions. Archiving sets `archived_at`; reactivation clears it. A matching active category returns a safe conflict; a matching archived row reactivates instead of creating a duplicate.
 3. Implement manual expense/refund create, edit, recent list, and confirmation-protected hard delete actions/UI. The active, owned category must be verified on every create and edit.
 4. Validate dates, descriptions, types, categories, notes, and positive integer cents with Zod; format values in CAD/`en-CA`.
 5. Revalidate dependent views after every mutation and provide accessible empty, pending, success, and safe error states.
