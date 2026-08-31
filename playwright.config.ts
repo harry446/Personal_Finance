@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [
     {
       name: 'unauthenticated',
-      testMatch: /[\\/]unauthenticated\.spec\.ts$/,
+      testMatch: /[\\/](?:home|unauthenticated)\.spec\.ts$/,
     },
     {
       name: 'authenticated',
