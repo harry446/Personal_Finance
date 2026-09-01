@@ -6,8 +6,13 @@ import {
   listRecentTransactionsForUser,
 } from '@/lib/ledger';
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string | string[] }>;
+}) {
   const user = await requireCurrentUser();
+  const { new: newTransaction } = await searchParams;
   const [categories, transactions] = await Promise.all([
     listCategoriesForUser(user.id),
     listRecentTransactionsForUser(user.id, 100),
@@ -15,6 +20,7 @@ export default async function TransactionsPage() {
 
   return (
     <TransactionsWorkspace
+      openOnLoad={newTransaction === '1'}
       categories={categories.map((category) => ({
         id: category.id,
         name: category.name,

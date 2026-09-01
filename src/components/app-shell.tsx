@@ -21,10 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[var(--pf-bg-canvas)] text-[var(--pf-text-primary)] md:flex">
       <aside className="border-b border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)] px-4 py-6 md:sticky md:top-0 md:flex md:h-screen md:w-[248px] md:shrink-0 md:flex-col md:border-r md:border-b-0 md:px-4 md:py-8">
         <div className="px-4">
-          <Link
-            className="text-xl font-semibold leading-7"
-            href="/app/transactions"
-          >
+          <Link className="text-xl font-semibold leading-7" href="/app">
             Morrow
           </Link>
           <p className="mt-1 text-xs leading-[17px] text-[var(--pf-text-secondary)]">

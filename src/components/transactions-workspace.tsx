@@ -37,12 +37,16 @@ type TypeFilter = 'all' | TransactionRow['type'];
 
 export function TransactionsWorkspace({
   categories,
+  openOnLoad = false,
   transactions,
 }: {
   categories: CategoryOption[];
+  openOnLoad?: boolean;
   transactions: TransactionRow[];
 }) {
-  const [editor, setEditor] = useState<EditorMode>(null);
+  const [editor, setEditor] = useState<EditorMode>(
+    openOnLoad ? { kind: 'create' } : null,
+  );
   const [monthFilter, setMonthFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');

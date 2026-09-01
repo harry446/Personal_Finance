@@ -21,7 +21,7 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('link', { name: 'Morrow' })).toHaveAttribute(
       'href',
-      '/app/transactions',
+      '/app',
     );
     expect(screen.getByRole('link', { name: 'Transactions' })).toHaveAttribute(
       'aria-current',

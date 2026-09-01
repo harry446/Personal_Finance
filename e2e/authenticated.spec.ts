@@ -20,7 +20,9 @@ test('creates a manual expense and reports safe field validation', async ({
   await page.getByRole('button', { name: 'Save transaction' }).click();
 
   await expect(page.getByText('FreshCo')).toBeVisible();
-  await expect(page.getByText('-$84.16')).toBeVisible();
+  await expect(
+    page.locator('tr').filter({ hasText: 'FreshCo' }).getByText('-$84.16'),
+  ).toBeVisible();
 
   await page
     .getByRole('button', { name: /add transaction/i })
@@ -62,4 +64,31 @@ test('archives a category and exposes its restore control', async ({
     page.getByText('Browser test category', { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Restore' })).toBeVisible();
+});
+
+test('shows an empty dashboard state for a selected month without ledger rows', async ({
+  page,
+}) => {
+  await page.goto('/app?month=2026-01');
+
+  await expect(
+    page.getByRole('heading', { name: 'No transactions in this month yet.' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Add your first transaction' }),
+  ).toHaveAttribute('href', '/app/transactions?new=1');
+});
+
+test('shows populated monthly dashboard totals, trend, and recent ledger records', async ({
+  page,
+}) => {
+  await page.goto('/app?month=2026-08');
+
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  await expect(
+    page.getByLabel('August 2026 expense and refund trend by transaction date'),
+  ).toBeVisible();
+  await expect(page.getByText('Dashboard groceries')).toBeVisible();
+  await expect(page.getByText('Dashboard refund')).toBeVisible();
+  await expect(page.getByText('Top categories')).toBeVisible();
 });

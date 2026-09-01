@@ -1,6 +1,6 @@
 # Personal Finance
 
-A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0, M1, and M2.
+A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 through M3.
 
 ## Technology
 
@@ -9,7 +9,7 @@ A private personal-finance spending tracker for expenses, refunds, reviewed docu
 - Vitest + Testing Library for units, Playwright for browser smoke tests
 - GitHub Actions quality gate with a PostgreSQL service
 
-M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. Dashboards, imports, and budgets remain intentionally deferred to their respective milestones.
+M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. M3 adds the user-scoped monthly dashboard: validated month selection, gross expenses, refunds, net spending, category net totals, daily trend, and recent ledger activity. Imports and budgets remain intentionally deferred to their respective milestones.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ M1 provides Google OAuth, user bootstrap, default categories, and user-isolation
 4. Apply migrations to an empty local database: `npm run prisma:migrate`.
 5. Start the application: `npm run dev`.
 
-The generated `prisma/migrations/20260829180000_baseline` migration is deliberately empty. The M1 migrations create Auth.js adapter tables and the user-owned category table; the M2 migration adds the positive-cents transaction ledger with user/category foreign keys and restrictive category deletion.
+The generated `prisma/migrations/20260829180000_baseline` migration is deliberately empty. The M1 migrations create Auth.js adapter tables and the user-owned category table; the M2 migration adds the positive-cents transaction ledger with user/category foreign keys and restrictive category deletion. M3 adds no database migration; it reads the owned M2 ledger by transaction date.
 
 ## Google OAuth configuration (M1)
 

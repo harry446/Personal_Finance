@@ -16,8 +16,10 @@ export default async function globalSetup() {
   }
 
   const userId = randomUUID();
-  const email = `playwright-m2-${randomUUID()}@example.test`;
+  const email = `playwright-m3-${randomUUID()}@example.test`;
   const sessionToken = randomUUID();
+  const groceriesId = randomUUID();
+  const restaurantsId = randomUUID();
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const client = new Client({ connectionString });
 
@@ -30,13 +32,35 @@ export default async function globalSetup() {
     `INSERT INTO "categories" ("id", "user_id", "name", "normalized_name", "updated_at")
      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP), ($5, $2, $6, $7, CURRENT_TIMESTAMP)`,
     [
-      randomUUID(),
+      groceriesId,
       userId,
       'Groceries',
       'groceries',
-      randomUUID(),
+      restaurantsId,
       'Restaurants',
       'restaurants',
+    ],
+  );
+  await client.query(
+    `INSERT INTO "transactions" (
+      "id", "user_id", "category_id", "transaction_date", "type", "amount_cents", "description", "updated_at"
+    )
+    VALUES
+      ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP),
+      ($8, $2, $3, $9, $10, $11, $12, CURRENT_TIMESTAMP)`,
+    [
+      randomUUID(),
+      userId,
+      groceriesId,
+      '2026-08-24',
+      'expense',
+      8_416,
+      'Dashboard groceries',
+      randomUUID(),
+      '2026-08-19',
+      'refund',
+      1_264,
+      'Dashboard refund',
     ],
   );
   await client.query(
