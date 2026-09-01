@@ -21,6 +21,9 @@ export default async function globalSetup() {
   const groceriesId = randomUUID();
   const restaurantsId = randomUUID();
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const importBatchId = randomUUID();
+  const reviewCandidateId = randomUUID();
+  const incompleteCandidateId = randomUUID();
   const client = new Client({ connectionString });
 
   await client.connect();
@@ -61,6 +64,28 @@ export default async function globalSetup() {
       'refund',
       1_264,
       'Dashboard refund',
+    ],
+  );
+  await client.query(
+    `INSERT INTO "import_batches" (
+      "id", "user_id", "status", "file_count", "candidate_count", "approved_count", "model", "updated_at"
+    ) VALUES ($1, $2, 'ready_for_review', 0, 2, 0, 'playwright-pre-seeded', CURRENT_TIMESTAMP)`,
+    [importBatchId, userId],
+  );
+  await client.query(
+    `INSERT INTO "candidate_transactions" (
+      "id", "import_batch_id", "ordinal", "transaction_date", "type", "amount_cents", "description", "category_id", "review_state", "updated_at"
+    ) VALUES
+      ($1, $2, 1, $3, 'expense', 1875, $4, $5, 'pending', CURRENT_TIMESTAMP),
+      ($6, $2, 2, NULL, NULL, NULL, $7, NULL, 'pending', CURRENT_TIMESTAMP)`,
+    [
+      reviewCandidateId,
+      importBatchId,
+      '2026-09-02',
+      'Playwright reviewed purchase',
+      groceriesId,
+      incompleteCandidateId,
+      'Incomplete candidate',
     ],
   );
   await client.query(

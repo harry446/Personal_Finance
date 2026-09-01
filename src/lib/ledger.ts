@@ -27,7 +27,9 @@ export class CategoryNameConflictError extends Error {
 }
 
 export class OwnedRecordNotFoundError extends Error {
-  constructor(resource: 'category' | 'transaction') {
+  constructor(
+    resource: 'candidate' | 'category' | 'import batch' | 'transaction',
+  ) {
     super(`The ${resource} was not found in your workspace.`);
     this.name = 'OwnedRecordNotFoundError';
   }

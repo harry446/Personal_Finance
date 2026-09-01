@@ -8,17 +8,18 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String?
-  email         String?   @unique
-  emailVerified DateTime? @map("email_verified")
+  email         String?       @unique
+  emailVerified DateTime?     @map("email_verified")
   image         String?
   accounts      Account[]
   categories    Category[]
   sessions      Session[]
   transactions  Transaction[]
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  importBatches ImportBatch[]
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   @@map("users")
 }
@@ -63,15 +64,16 @@ model VerificationToken {
 }
 
 model Category {
-  id             String   @id @default(cuid())
-  userId         String   @map("user_id")
+  id             String                 @id @default(cuid())
+  userId         String                 @map("user_id")
   name           String
-  normalizedName String   @map("normalized_name")
-  archivedAt     DateTime? @map("archived_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  normalizedName String                 @map("normalized_name")
+  archivedAt     DateTime?              @map("archived_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions   Transaction[]
+  candidates     CandidateTransaction[]
 
   @@unique([userId, normalizedName])
   @@index([userId, archivedAt])
@@ -89,21 +91,107 @@ enum TransactionSource {
 }
 
 model Transaction {
-  id              String            @id @default(cuid())
-  userId          String            @map("user_id")
-  categoryId      String            @map("category_id")
-  transactionDate DateTime          @db.Date @map("transaction_date")
-  type            TransactionType
-  amountCents     Int               @map("amount_cents")
-  description     String
-  notes           String?
-  source          TransactionSource @default(MANUAL)
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category        Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id                String                @id @default(cuid())
+  userId            String                @map("user_id")
+  categoryId        String                @map("category_id")
+  transactionDate   DateTime              @map("transaction_date") @db.Date
+  type              TransactionType
+  amountCents       Int                   @map("amount_cents")
+  description       String
+  notes             String?
+  source            TransactionSource     @default(MANUAL)
+  importBatchId     String?               @map("import_batch_id")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  importBatch       ImportBatch?          @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  approvedCandidate CandidateTransaction? @relation("CandidateSavedTransaction")
 
   @@index([userId, transactionDate])
   @@index([categoryId])
+  @@index([importBatchId])
   @@map("transactions")
+}
+
+enum ImportBatchStatus {
+  PROCESSING       @map("processing")
+  READY_FOR_REVIEW @map("ready_for_review")
+  APPROVED         @map("approved")
+  FAILED           @map("failed")
+}
+
+enum CandidateReviewState {
+  PENDING  @map("pending")
+  SELECTED @map("selected")
+  EXCLUDED @map("excluded")
+  APPROVED @map("approved")
+}
+
+enum ExtractionLogStatus {
+  PENDING   @map("pending")
+  SUCCEEDED @map("succeeded")
+  FAILED    @map("failed")
+}
+
+model ImportBatch {
+  id                 String                 @id @default(cuid())
+  userId             String                 @map("user_id")
+  status             ImportBatchStatus      @default(READY_FOR_REVIEW)
+  fileCount          Int                    @default(0) @map("file_count")
+  candidateCount     Int                    @default(0) @map("candidate_count")
+  approvedCount      Int                    @default(0) @map("approved_count")
+  model              String
+  failureCode        String?                @map("failure_code")
+  failureMessageSafe String?                @map("failure_message_safe")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  candidates         CandidateTransaction[]
+  extractionLog      ExtractionLog?
+  transactions       Transaction[]
+
+  @@index([userId, createdAt])
+  @@map("import_batches")
+}
+
+model CandidateTransaction {
+  id                    String               @id @default(cuid())
+  importBatchId         String               @map("import_batch_id")
+  ordinal               Int
+  transactionDate       DateTime?            @map("transaction_date") @db.Date
+  type                  TransactionType?
+  amountCents           Int?                 @map("amount_cents")
+  description           String?
+  categoryId            String?              @map("category_id")
+  notes                 String?
+  suggestedCategoryText String?              @map("suggested_category_text")
+  reviewState           CandidateReviewState @default(PENDING) @map("review_state")
+  savedTransactionId    String?              @unique @map("saved_transaction_id")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
+  importBatch           ImportBatch          @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  category              Category?            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  savedTransaction      Transaction?         @relation("CandidateSavedTransaction", fields: [savedTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([importBatchId, ordinal])
+  @@index([importBatchId, reviewState])
+  @@map("candidate_transactions")
+}
+
+model ExtractionLog {
+  id                String              @id @default(cuid())
+  importBatchId     String              @unique @map("import_batch_id")
+  providerRequestId String?             @map("provider_request_id")
+  model             String
+  status            ExtractionLogStatus @default(PENDING)
+  errorCode         String?             @map("error_code")
+  durationMs        Int                 @map("duration_ms")
+  expiresAt         DateTime            @map("expires_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  importBatch       ImportBatch         @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("extraction_logs")
 }

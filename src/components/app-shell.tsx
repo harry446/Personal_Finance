@@ -9,7 +9,7 @@ import { SignOutButton } from '@/components/sign-out-button';
 const navigation: ReadonlyArray<{ href?: string; label: string }> = [
   { href: '/app', label: 'Overview' },
   { href: '/app/transactions', label: 'Transactions' },
-  { label: 'Imports' },
+  { href: '/app/imports', label: 'Imports' },
   { label: 'Budgets' },
   { href: '/app/categories', label: 'Categories' },
 ];

@@ -110,6 +110,8 @@ export async function restoreCategoryAction(
   _previousState: ActionResult | null,
   _formData: FormData,
 ): Promise<ActionResult> {
+  void _previousState;
+  void _formData;
   const user = await requireCurrentUser();
 
   try {

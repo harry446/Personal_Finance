@@ -27,6 +27,10 @@ describe('AppShell', () => {
       'aria-current',
       'page',
     );
+    expect(screen.getByRole('link', { name: 'Imports' })).toHaveAttribute(
+      'href',
+      '/app/imports',
+    );
     expect(
       screen.getByRole('button', { name: 'Sign out' }),
     ).toBeInTheDocument();

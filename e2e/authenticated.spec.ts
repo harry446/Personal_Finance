@@ -92,3 +92,45 @@ test('shows populated monthly dashboard totals, trend, and recent ledger records
   await expect(page.getByText('Dashboard refund')).toBeVisible();
   await expect(page.getByText('Top categories')).toBeVisible();
 });
+
+test('reviews a pre-seeded import, blocks incomplete approval, excludes it, and saves the valid candidate', async ({
+  page,
+}) => {
+  await page.goto('/app/imports');
+
+  await expect(
+    page.getByRole('heading', { name: 'Recommended transactions' }),
+  ).toBeVisible();
+  const validCandidate = page.locator('article').filter({
+    hasText: 'Playwright reviewed purchase',
+  });
+  const incompleteCandidate = page.locator('article').filter({
+    hasText: 'Incomplete candidate',
+  });
+
+  await validCandidate
+    .getByRole('button', { name: 'Select candidate' })
+    .click();
+  await incompleteCandidate
+    .getByRole('button', { name: 'Select candidate' })
+    .click();
+  await page.getByRole('button', { name: 'Approve selected' }).click();
+
+  await expect(page.getByText(/Candidate 2 needs/)).toBeVisible();
+  await incompleteCandidate
+    .getByRole('button', { name: 'Exclude candidate' })
+    .click();
+  await expect(incompleteCandidate.getByText('Excluded')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Approve selected' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Saved recommendations' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('1 transaction saved from this batch.'),
+  ).toBeVisible();
+  await expect(validCandidate.getByText('Saved')).toBeVisible();
+
+  await page.goto('/app?month=2026-09');
+  await expect(page.getByText('Playwright reviewed purchase')).toBeVisible();
+});
