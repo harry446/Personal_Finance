@@ -30,6 +30,12 @@ An audit must cite concrete evidence: file paths, migration identifiers, routes/
 
 If product scope changes, amend this document and its architecture references before implementation; retain the original requirement history in Git. Do not silently reinterpret a requirement during an audit.
 
+## Active operational TODOs
+
+These owner-managed items are separate from code-completion evidence. They must be completed before M5 is treated as live in a hosted environment.
+
+- [ ] **M5 deployment — encrypted-retention purge:** Configure the hosting provider to send an authenticated daily `POST` request to `/api/internal/purge-extractions`. Read `EXTRACTION_PURGE_SECRET` from the host secret manager and send it as `Authorization: Bearer <secret>`. Verify the job succeeds without logging the secret.
+- [ ] **M5 model evaluation — accuracy first:** Benchmark the current extraction model against eligible OpenAI Responses API models, including Luna only if it is available to this API project. Use representative, non-sensitive fixtures and mandatory human-review quality criteria; prioritize extraction accuracy over cost before changing the configured model identifier.
 ## M0 — Project foundation
 
 **Goal.** Establish a reproducible Next.js TypeScript App Router application with the smallest practical UI, database, testing, and delivery foundation. M0 contains no authentication or finance product features.

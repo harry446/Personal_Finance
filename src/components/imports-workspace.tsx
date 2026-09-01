@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 
 import {
@@ -140,23 +141,117 @@ function Step({
   );
 }
 
+type ImportUploadResponse = {
+  batchId?: string;
+  error?: string;
+  message?: string;
+};
+
 function UploadNotice() {
+  const router = useRouter();
+  const [files, setFiles] = useState<File[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  async function uploadFiles(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (files.length === 0) {
+      setError('Choose at least one PDF, screenshot, or image to import.');
+      return;
+    }
+
+    setError(null);
+    setIsUploading(true);
+    const formData = new FormData();
+
+    for (const file of files) {
+      formData.append('files', file);
+    }
+
+    try {
+      const response = await fetch('/api/imports', {
+        body: formData,
+        method: 'POST',
+      });
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ImportUploadResponse | null;
+
+      if (payload?.batchId) {
+        router.push(
+          `/app/imports?batch=${encodeURIComponent(payload.batchId)}`,
+        );
+        return;
+      }
+
+      setError(
+        payload?.error ??
+          payload?.message ??
+          'We could not start this import. Please try a new upload.',
+      );
+    } catch {
+      setError('We could not reach the import service. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   return (
     <section
-      aria-labelledby="upload-next-heading"
+      aria-labelledby="upload-heading"
       className="rounded-xl border border-dashed border-[var(--pf-action-primary)] bg-[var(--pf-bg-surface)] px-6 py-8 text-center"
     >
       <p className="text-xs font-semibold tracking-[0.12em] text-[var(--pf-action-primary)]">
-        NEXT UP
+        UPLOAD & EXTRACT
       </p>
-      <h2 className="mt-3 text-xl font-bold leading-7" id="upload-next-heading">
-        Upload extraction arrives in M5
+      <h2 className="mt-3 text-xl font-bold leading-7" id="upload-heading">
+        Turn statements into reviewable transactions
       </h2>
       <p className="mx-auto mt-2 max-w-xl text-sm leading-5 text-[var(--pf-text-secondary)]">
-        This milestone is deliberately limited to durable review and approval.
-        Files and OpenAI extraction will create future review batches without
-        saving transactions automatically.
+        Choose PDFs, screenshots, or common images. Files are held only while
+        this request runs, then sent to OpenAI for extraction. Nothing reaches
+        your ledger until you review and approve it.
       </p>
+      <form className="mx-auto mt-6 max-w-xl" onSubmit={uploadFiles}>
+        <label className="flex cursor-pointer flex-col items-center rounded-lg border border-[var(--pf-border-default)] bg-[var(--pf-bg-canvas)] px-5 py-5 text-sm font-semibold text-[var(--pf-text-primary)] transition-colors hover:border-[var(--pf-action-primary)]">
+          <span>Choose import files</span>
+          <span className="mt-1 text-xs font-normal text-[var(--pf-text-secondary)]">
+            PDF, PNG, JPEG, WEBP, or GIF
+          </span>
+          <input
+            accept=".pdf,application/pdf,image/png,image/jpeg,image/webp,image/gif"
+            aria-label="Choose import files"
+            className="sr-only"
+            multiple
+            onChange={(event) => {
+              setError(null);
+              setFiles(Array.from(event.currentTarget.files ?? []));
+            }}
+            type="file"
+          />
+        </label>
+        <p className="mt-3 text-xs leading-4 text-[var(--pf-text-secondary)]">
+          {files.length === 0
+            ? 'No files selected yet.'
+            : `${files.length} file${files.length === 1 ? '' : 's'} selected. File names and source bytes are not saved.`}
+        </p>
+        {error ? (
+          <p
+            className="mt-3 rounded-lg bg-[#fff0ed] px-3 py-2 text-xs leading-4 text-[var(--pf-status-expense)]"
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null}
+        <button
+          className="mt-5 rounded-full bg-[var(--pf-action-primary)] px-5 py-2.5 text-xs font-semibold text-[var(--pf-bg-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isUploading}
+          type="submit"
+        >
+          {isUploading ? 'Creating review batch…' : 'Extract transactions'}
+        </button>
+      </form>
     </section>
   );
 }
@@ -300,7 +395,7 @@ function FailedBatch({ batch }: { batch: ImportBatch }) {
       </h2>
       <p className="mt-2 text-sm leading-5 text-[var(--pf-text-secondary)]">
         {batch.failureMessageSafe ??
-          'No transactions were added to your ledger. A new upload will be required in the next milestone.'}
+          'No transactions were added to your ledger. Upload the files again to create a fresh review batch.'}
       </p>
     </section>
   );

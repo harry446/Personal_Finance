@@ -180,17 +180,18 @@ model CandidateTransaction {
 }
 
 model ExtractionLog {
-  id                String              @id @default(cuid())
-  importBatchId     String              @unique @map("import_batch_id")
-  providerRequestId String?             @map("provider_request_id")
-  model             String
-  status            ExtractionLogStatus @default(PENDING)
-  errorCode         String?             @map("error_code")
-  durationMs        Int                 @map("duration_ms")
-  expiresAt         DateTime            @map("expires_at")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  importBatch       ImportBatch         @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  id                  String              @id @default(cuid())
+  importBatchId       String              @unique @map("import_batch_id")
+  providerRequestId   String?             @map("provider_request_id")
+  model               String
+  status              ExtractionLogStatus @default(PENDING)
+  errorCode           String?             @map("error_code")
+  rawOutputCiphertext String?             @map("raw_output_ciphertext") @db.Text
+  durationMs          Int                 @map("duration_ms")
+  expiresAt           DateTime            @map("expires_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  importBatch         ImportBatch         @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@map("extraction_logs")

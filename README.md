@@ -1,6 +1,6 @@
 # Personal Finance
 
-A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 through M4.
+A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 through M5.
 
 ## Technology
 
@@ -9,7 +9,7 @@ A private personal-finance spending tracker for expenses, refunds, reviewed docu
 - Vitest + Testing Library for units, Playwright for browser smoke tests
 - GitHub Actions quality gate with a PostgreSQL service
 
-M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. M3 adds the user-scoped monthly dashboard: validated month selection, gross expenses, refunds, net spending, category net totals, daily trend, and recent ledger activity. M4 adds durable, user-scoped import batches and candidate review: editable candidates, select/exclude states, atomic approval into the ledger, and durable history. File upload and OpenAI extraction remain deliberately deferred to M5; budgets remain deferred to M6.
+M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. M3 adds the user-scoped monthly dashboard: validated month selection, gross expenses, refunds, net spending, category net totals, daily trend, and recent ledger activity. M4 adds durable, user-scoped import batches and candidate review: editable candidates, select/exclude states, atomic approval into the ledger, and durable history. M5 adds temporary in-memory PDF/image extraction through the OpenAI Responses API, mandatory human review, encrypted short-retention raw output, and a purge trigger; budgets remain deferred to M6.
 
 ## Prerequisites
 
@@ -98,4 +98,16 @@ Prisma uses PostgreSQL exclusively. `prisma.config.ts` reads `DATABASE_URL`, `pr
 
 The production deployment is one Next.js service plus one managed PostgreSQL database. Apply migrations before serving new application code, use TLS and a secret manager, and verify backup/restore procedures before release.
 
-Future multipart imports will process PDFs and images only in request memory. The chosen host must support the required request body size and execution duration. Those hosting/runtime constraints must be documented operationally; the product will not invent arbitrary upload-size limits.
+## Temporary OpenAI extraction (M5)
+
+M5 accepts authenticated PDF, PNG, JPEG, WEBP, and GIF uploads at `POST /api/imports`. The route runs in the Node.js runtime, keeps request buffers only in memory, sends direct PDF/image input to the OpenAI Responses API with `store: false`, and discards those references in `finally`. It never writes upload bytes, source file names, or OpenAI File API IDs to durable storage. The only durable result is a review batch, untrusted candidate rows, minimal request metadata, and encrypted raw provider output. Candidates start unselected; only the existing M4 approval action can write ledger transactions.
+
+Before enabling live extraction, configure these untracked deployment secrets:
+
+- `OPENAI_API_KEY` — a server-side key from the OpenAI project that will process imports.
+- `EXTRACTION_LOG_ENCRYPTION_KEY` — the base64 encoding of exactly 32 random bytes. In PowerShell, generate one with `$bytes = [byte[]]::new(32); [Security.Cryptography.RandomNumberGenerator]::Fill($bytes); [Convert]::ToBase64String($bytes)`.
+- `EXTRACTION_PURGE_SECRET` — a separate random bearer secret for the retention trigger.
+
+The application stores encrypted raw Responses output for 30 days only. Configure the deployment scheduler to call `POST /api/internal/purge-extractions` at least daily with `Authorization: Bearer <EXTRACTION_PURGE_SECRET>`. This operation is idempotent: it clears only expired ciphertext and retains non-sensitive batch metadata. Each new import also makes a best-effort purge call. Do not expose this endpoint or any of the listed secrets to the browser.
+
+The chosen host must support the request-body size and synchronous execution duration required by the files a user submits. These are operational platform constraints, not a product file-size limit. Before enabling this feature for anyone beyond the owner, publish a privacy notice that explains that selected uploads are sent to OpenAI for extraction. `store: false` prevents intentional Responses state retention, but OpenAI's published data controls describe exceptional image/file abuse-monitoring retention.

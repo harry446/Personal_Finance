@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock('@/app/app/imports/actions', () => ({
   approveImportBatchAction: vi.fn(),
   setCandidateReviewStateAction: vi.fn(),
@@ -111,7 +115,9 @@ describe('ImportsWorkspace', () => {
     ).toBeVisible();
     expect(screen.getByText('Waiting for an extraction')).toBeVisible();
     expect(
-      screen.getByRole('heading', { name: 'Upload extraction arrives in M5' }),
+      screen.getByRole('heading', {
+        name: 'Turn statements into reviewable transactions',
+      }),
     ).toBeVisible();
   });
 });

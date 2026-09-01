@@ -1,5 +1,67 @@
-import { expect, test } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 
+import { expect, test } from '@playwright/test';
+import { Client } from 'pg';
+
+async function seedMockedReviewBatch() {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL is required for authenticated browser tests.',
+    );
+  }
+
+  const client = new Client({ connectionString });
+
+  await client.connect();
+
+  try {
+    const user = await client.query<{ id: string }>(
+      `SELECT "id" FROM "users"
+       WHERE "email" LIKE 'playwright-m3-%@example.test'
+       ORDER BY "created_at" DESC
+       LIMIT 1`,
+    );
+    const userId = user.rows[0]?.id;
+
+    if (!userId) {
+      throw new Error('The authenticated browser user was not found.');
+    }
+
+    const category = await client.query<{ id: string }>(
+      `SELECT "id" FROM "categories"
+       WHERE "user_id" = $1 AND "normalized_name" = 'groceries'`,
+      [userId],
+    );
+    const categoryId = category.rows[0]?.id;
+
+    if (!categoryId) {
+      throw new Error(
+        'The authenticated browser groceries category was not found.',
+      );
+    }
+
+    const batchId = randomUUID();
+
+    await client.query(
+      `INSERT INTO "import_batches" (
+        "id", "user_id", "status", "file_count", "candidate_count", "approved_count", "model", "updated_at"
+      ) VALUES ($1, $2, 'ready_for_review', 1, 1, 0, 'playwright-m5-mocked', CURRENT_TIMESTAMP)`,
+      [batchId, userId],
+    );
+    await client.query(
+      `INSERT INTO "candidate_transactions" (
+        "id", "import_batch_id", "ordinal", "transaction_date", "type", "amount_cents", "description", "category_id", "review_state", "updated_at"
+      ) VALUES ($1, $2, 1, '2026-09-08', 'expense', 2145, 'M5 mocked upload candidate', $3, 'pending', CURRENT_TIMESTAMP)`,
+      [randomUUID(), batchId, categoryId],
+    );
+
+    return batchId;
+  } finally {
+    await client.end();
+  }
+}
 test('creates a manual expense and reports safe field validation', async ({
   page,
 }) => {
@@ -133,4 +195,46 @@ test('reviews a pre-seeded import, blocks incomplete approval, excludes it, and 
 
   await page.goto('/app?month=2026-09');
   await expect(page.getByText('Playwright reviewed purchase')).toBeVisible();
+});
+
+test('uploads a supported file and opens the review queue with a mocked extraction response', async ({
+  page,
+}) => {
+  await page.goto('/app/imports');
+  await page.waitForLoadState('networkidle');
+
+  const batchId = await seedMockedReviewBatch();
+  await page.route('**/api/imports', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    await route.fulfill({
+      body: JSON.stringify({
+        batchId,
+        message: 'Your files are ready for review.',
+        status: 'READY_FOR_REVIEW',
+      }),
+      contentType: 'application/json',
+      status: 201,
+    });
+  });
+
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: Buffer.from('%PDF-1.7 test statement'),
+    mimeType: 'application/pdf',
+    name: 'private-statement.pdf',
+  });
+  await expect
+    .poll(() =>
+      page
+        .locator('input[type="file"]')
+        .evaluate((input) => (input as HTMLInputElement).files?.length),
+    )
+    .toBe(1);
+  await expect(page.getByText(/1 file selected/)).toBeVisible();
+  await page.getByRole('button', { name: 'Extract transactions' }).click();
+
+  await page.waitForURL(new RegExp(`/app/imports\\?batch=${batchId}`));
+  await expect(
+    page.getByRole('heading', { name: 'Recommended transactions' }),
+  ).toBeVisible();
+  await expect(page.getByText('M5 mocked upload candidate')).toBeVisible();
 });
