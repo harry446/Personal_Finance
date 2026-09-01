@@ -53,11 +53,11 @@ async function seedMockedReviewBatch() {
     await client.query(
       `INSERT INTO "candidate_transactions" (
         "id", "import_batch_id", "ordinal", "transaction_date", "type", "amount_cents", "description", "category_id", "review_state", "updated_at"
-      ) VALUES ($1, $2, 1, '2026-09-08', 'expense', 2145, 'M5 mocked upload candidate', $3, 'pending', CURRENT_TIMESTAMP)`,
+      ) VALUES ($1, $2, 1, '2026-08-14', 'expense', 2145, 'M5 mocked upload candidate', $3, 'pending', CURRENT_TIMESTAMP)`,
       [randomUUID(), batchId, categoryId],
     );
 
-    return batchId;
+    return { batchId, categoryId };
   } finally {
     await client.end();
   }
@@ -155,7 +155,7 @@ test('shows populated monthly dashboard totals, trend, and recent ledger records
   await expect(page.getByText('Top categories')).toBeVisible();
 });
 
-test('reviews a pre-seeded import, blocks incomplete approval, excludes it, and saves the valid candidate', async ({
+test('finalizes a reviewed import and removes every row from the review queue', async ({
   page,
 }) => {
   await page.goto('/app/imports');
@@ -163,47 +163,49 @@ test('reviews a pre-seeded import, blocks incomplete approval, excludes it, and 
   await expect(
     page.getByRole('heading', { name: 'Recommended transactions' }),
   ).toBeVisible();
-  const validCandidate = page.locator('article').filter({
-    hasText: 'Playwright reviewed purchase',
+  const reviewCandidates = page.locator('article').filter({
+    has: page.locator('input[name=description]'),
   });
-  const incompleteCandidate = page.locator('article').filter({
-    hasText: 'Incomplete candidate',
-  });
+  const validCandidate = reviewCandidates.nth(0);
+  const incompleteCandidate = reviewCandidates.nth(1);
+
+  await expect(validCandidate.getByLabel('Date', { exact: true })).toHaveValue(
+    '2026-09-02',
+  );
+  await expect(
+    validCandidate.getByLabel('Description or merchant'),
+  ).toHaveValue('Playwright reviewed purchase');
+  await expect(validCandidate.getByLabel('Amount (CAD)')).toHaveValue('18.75');
+  await expect(
+    validCandidate.getByRole('button', { name: 'Edit notes' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /exclude/i })).toHaveCount(0);
+
+  await expect(page.getByRole('button', { name: 'Discard all' })).toBeEnabled();
 
   await validCandidate
     .getByRole('button', { name: 'Select candidate' })
     .click();
-  await incompleteCandidate
-    .getByRole('button', { name: 'Select candidate' })
-    .click();
-  await page.getByRole('button', { name: 'Approve selected' }).click();
+  await page.getByRole('button', { name: 'Save selected' }).click();
 
-  await expect(page.getByText(/Candidate 2 needs/)).toBeVisible();
-  await incompleteCandidate
-    .getByRole('button', { name: 'Exclude candidate' })
-    .click();
-  await expect(incompleteCandidate.getByText('Excluded')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Approve selected' }).click();
+  await page.waitForURL(/\/app\/imports$/);
   await expect(
-    page.getByRole('heading', { name: 'Saved recommendations' }),
+    page.getByRole('heading', { name: 'Nothing to review yet' }),
   ).toBeVisible();
-  await expect(
-    page.getByText('1 transaction saved from this batch.'),
-  ).toBeVisible();
-  await expect(validCandidate.getByText('Saved')).toBeVisible();
+  await expect(validCandidate).toHaveCount(0);
+  await expect(incompleteCandidate).toHaveCount(0);
+  await expect(page.getByText('2 candidates · 1 saved')).toBeVisible();
 
   await page.goto('/app?month=2026-09');
   await expect(page.getByText('Playwright reviewed purchase')).toBeVisible();
 });
-
 test('uploads a supported file and opens the review queue with a mocked extraction response', async ({
   page,
 }) => {
   await page.goto('/app/imports');
   await page.waitForLoadState('networkidle');
 
-  const batchId = await seedMockedReviewBatch();
+  const { batchId, categoryId } = await seedMockedReviewBatch();
   await page.route('**/api/imports', async (route) => {
     expect(route.request().method()).toBe('POST');
     await route.fulfill({
@@ -236,5 +238,18 @@ test('uploads a supported file and opens the review queue with a mocked extracti
   await expect(
     page.getByRole('heading', { name: 'Recommended transactions' }),
   ).toBeVisible();
-  await expect(page.getByText('M5 mocked upload candidate')).toBeVisible();
+  const extractedCandidate = page
+    .locator('article')
+    .filter({ has: page.locator('input[name=description]') })
+    .first();
+  await expect(extractedCandidate).toBeVisible();
+  await expect(
+    extractedCandidate.getByLabel('Date', { exact: true }),
+  ).toHaveValue('2026-08-14');
+  await expect(extractedCandidate.getByLabel('Category')).toHaveValue(
+    categoryId,
+  );
+  await expect(extractedCandidate.getByLabel('Amount (CAD)')).toHaveValue(
+    '21.45',
+  );
 });

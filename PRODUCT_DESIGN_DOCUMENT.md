@@ -382,16 +382,16 @@ The application must provide a human review step before AI-extracted transaction
 Review requirements:
 
 1. Display all candidate transactions from all files in the batch together.
-2. Allow the user to include or exclude each candidate transaction.
+2. Allow the user to select or unselect each candidate transaction. At final approval, every unselected candidate is discarded from the ledger.
 3. Allow the user to edit transaction type, date, description, category, amount, and notes.
 4. Clearly indicate incomplete rows.
 5. Prevent selected rows from being saved until all required fields are complete.
-6. Save only selected and valid rows.
-7. Discard excluded rows from the saved transaction ledger.
+6. Save only selected and valid rows, or finalize with no selected rows to discard every suggestion.
+7. When the batch is approved, discard every unselected row from the ledger and remove all finalized candidates from the review queue.
 
 Rules:
 
-1. Excluded candidate transactions should still remain visible in raw import history.
+1. Completed batch metadata and final candidate state should remain available for audit history, but completed candidates should not reappear in the temporary review queue.
 2. Human review is mandatory for AI imports.
 3. AI-suggested transactions should be treated as untrusted until approved.
 
@@ -682,6 +682,7 @@ The extraction prompt should instruct the model to:
 5. Preserve transaction dates as shown in the document.
 6. Return structured data suitable for application parsing.
 7. Allow transactions across multiple months.
+8. Shorten a merchant name only when highly certain that a trailing branch, store, or location designator is incidental; otherwise preserve the source text.
 
 ### 10.3 Human Review Requirement
 
@@ -691,8 +692,8 @@ The user must be able to:
 
 1. Edit AI-filled fields.
 2. Fill missing fields.
-3. Exclude unwanted rows.
-4. Approve selected rows.
+3. Leave unwanted rows unselected; approval discards them when it finalizes the batch.
+4. Finalize review: save selected rows, or discard all when no rows are selected.
 
 ---
 

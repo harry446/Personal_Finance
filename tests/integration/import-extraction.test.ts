@@ -12,6 +12,7 @@ import { db } from '@/lib/db';
 import {
   decryptRawOutputForTest,
   processImportForUser,
+  type ImportExtractionContext,
   type ImportExtractionProvider,
   type ImportUpload,
 } from '@/lib/import-extraction';
@@ -43,13 +44,19 @@ async function createUser(label: string) {
 
 function provider(
   output: unknown,
-  options?: { rawOutput?: string; throwFirstRetryable?: boolean },
+  options?: {
+    onExtract?: (context: ImportExtractionContext) => void;
+    rawOutput?: string;
+    throwFirstRetryable?: boolean;
+  },
 ): ImportExtractionProvider {
   let attempts = 0;
 
   return {
-    async extract() {
+    async extract(_uploads, context) {
       attempts += 1;
+
+      options?.onExtract?.(context);
 
       if (options?.throwFirstRetryable && attempts === 1) {
         throw Object.assign(new Error('Temporary provider outage'), {
@@ -89,7 +96,7 @@ afterEach(async () => {
 });
 
 describe('M5 in-memory extraction to candidate workflow', () => {
-  it('maps only active owned categories, encrypts raw output, and never writes the ledger', async () => {
+  it('supplies active category choices, normalizes safe textual dates, encrypts raw output, and never writes the ledger', async () => {
     const user = await createUser('successful-extraction');
     const [groceries, transportation] = await Promise.all([
       db.category.findFirstOrThrow({
@@ -108,6 +115,7 @@ describe('M5 in-memory extraction to candidate workflow', () => {
       where: { userId: user.id },
     });
     const rawOutput = '{"private":"Market run"}';
+    const suppliedCategoryNames: string[][] = [];
     const result = await processImportForUser(user.id, [upload], {
       provider: provider(
         {
@@ -116,8 +124,8 @@ describe('M5 in-memory extraction to candidate workflow', () => {
               amountCents: 1234,
               description: 'Market run',
               notes: 'Weekly shopping',
-              suggestedCategory: '  groceries ',
-              transactionDate: '2026-09-05',
+              suggestedCategory: 'Groceries',
+              transactionDate: 'Aug 14, 2026',
               type: 'expense',
             },
             {
@@ -138,7 +146,12 @@ describe('M5 in-memory extraction to candidate workflow', () => {
             },
           ],
         },
-        { rawOutput },
+        {
+          onExtract: ({ activeCategoryNames }) => {
+            suppliedCategoryNames.push(activeCategoryNames);
+          },
+          rawOutput,
+        },
       ),
     });
 
@@ -168,6 +181,13 @@ describe('M5 in-memory extraction to candidate workflow', () => {
         expect.objectContaining({ categoryId: null, ordinal: 3 }),
       ]),
     );
+    expect(
+      batch.candidates[0]?.transactionDate?.toISOString().slice(0, 10),
+    ).toBe('2026-08-14');
+    expect(suppliedCategoryNames).toEqual([
+      expect.arrayContaining(['Groceries']),
+    ]);
+    expect(suppliedCategoryNames[0]).not.toContain('Transportation');
     expect(await db.category.count({ where: { userId: user.id } })).toBe(
       categoryCount,
     );

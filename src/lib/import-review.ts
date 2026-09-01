@@ -62,6 +62,27 @@ export async function listImportBatchesForUser(userId: string) {
   });
 }
 
+export async function listReviewBatchesForUser(userId: string) {
+  return db.importBatch.findMany({
+    where: {
+      status: {
+        in: [
+          ImportBatchStatus.FAILED,
+          ImportBatchStatus.PROCESSING,
+          ImportBatchStatus.READY_FOR_REVIEW,
+        ],
+      },
+      userId,
+    },
+    include: {
+      _count: {
+        select: { candidates: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 export async function getImportBatchForUser(userId: string, batchId: string) {
   const batch = await db.importBatch.findFirst({
     where: { id: batchId, userId },
@@ -157,12 +178,6 @@ export async function approveImportBatchForUser(
       FOR UPDATE
     `;
 
-    if (lockedCandidateRows.length === 0) {
-      throw new CandidateApprovalError(
-        'Select at least one complete candidate to approve.',
-      );
-    }
-
     const candidateIds = lockedCandidateRows.map((candidate) => candidate.id);
     const candidates = await transaction.candidateTransaction.findMany({
       where: {
@@ -186,6 +201,14 @@ export async function approveImportBatchForUser(
         candidate.categoryId,
       );
     }
+
+    await transaction.candidateTransaction.updateMany({
+      where: {
+        importBatchId: batch.id,
+        reviewState: { not: CandidateReviewState.SELECTED },
+      },
+      data: { reviewState: CandidateReviewState.EXCLUDED },
+    });
 
     const savedTransactions = [];
 
@@ -358,15 +381,8 @@ function prepareCandidateForApproval(candidate: CandidateForApproval) {
   };
 }
 
-function reviewStateToDatabaseValue(
-  reviewState: 'excluded' | 'pending' | 'selected',
-) {
-  switch (reviewState) {
-    case 'excluded':
-      return CandidateReviewState.EXCLUDED;
-    case 'pending':
-      return CandidateReviewState.PENDING;
-    case 'selected':
-      return CandidateReviewState.SELECTED;
-  }
+function reviewStateToDatabaseValue(reviewState: 'pending' | 'selected') {
+  return reviewState === 'selected'
+    ? CandidateReviewState.SELECTED
+    : CandidateReviewState.PENDING;
 }

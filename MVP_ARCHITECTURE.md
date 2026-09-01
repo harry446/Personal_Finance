@@ -79,17 +79,17 @@ Use server-only service functions underneath either Next.js Server Actions (form
 | Imports | `POST /api/imports` multipart, `GET /api/imports`, `GET /api/imports/:id`, review-row update, approve | Require session; batch and every candidate are retrieved through a user-scoped batch lookup. The multipart route is server-only and is the sole OpenAI caller. |
 | Import retry | recreate import after new upload | Require session. A failed extraction cannot be retried from the old batch because no source file is kept. The UI starts a new batch; it may link its display to the failed batch only as non-sensitive metadata. |
 
-The approval handler is a single database transaction: lock/read the user-owned batch and selected candidates, validate all required candidate fields and category ownership, insert ledger transactions, set each candidate to `approved` with its saved ID, and set the batch to `approved`. If validation or insertion fails, commit nothing.
+The approval handler is a single database transaction: lock/read the user-owned batch and selected candidates, validate all required candidate fields and category ownership, insert selected ledger transactions, set each selected candidate to `approved` with its saved ID, set every unselected candidate to `excluded`, and set the batch to `approved`. A batch with no selected candidates is valid: it creates no ledger transactions and finalizes every candidate as excluded. If validation or insertion fails, commit nothing. Completed batches are not returned to the temporary review queue.
 
 ## 5. AI import workflow
 
 1. Validate the authenticated multipart request: allowed broad document/image MIME families, file metadata, and server/runtime safety checks. Do not introduce a product-level size limit.
 2. Create `import_batches(status=processing)`.
 3. Keep upload bytes in request memory only. Send them directly as file/image input to the Responses API, use a versioned extraction prompt, a strict JSON schema, and `store: false`.
-4. Validate the returned JSON again with Zod. For uncertain dates, type, description, amount, or category, require the model to emit `null`/blank—not a guess.
+4. Validate the returned JSON again with Zod. For uncertain dates, type, description, amount, or category, require the model to emit `null`/blank—not a guess. It may remove a merchant branch/store designator only when the shortened merchant is highly certain; otherwise preserve the source merchant text.
 5. In one database transaction, write `candidate_transactions`, an encrypted `extraction_logs` record, counts, and `ready_for_review`. Only a suggested category name may be mapped to an existing active category; it is never auto-created.
-6. The review screen lets the user edit, select, or exclude every row. Incomplete selected rows are visibly invalid and cannot be approved.
-7. Approval performs the all-or-nothing transaction described above; excluded rows remain in batch history but are never inserted into `transactions`.
+6. The temporary review queue lets the user edit every required field inline and select or unselect each row. Incomplete selected rows are visibly invalid and cannot be approved.
+7. Approval performs the all-or-nothing transaction described above: all unselected rows become excluded, final row state remains in audit history, and completed candidates never reappear in the review queue or enter `transactions`.
 
 Failure handling: mark the batch `failed`, retain a safe error code/message plus the short-lived encrypted provider response when available, and discard the in-memory bytes. Retryable provider/network failures can receive one bounded automatic retry while bytes are still in the active request. Once that request ends, the user must re-upload to try again. Never expose raw provider responses or internal errors in the normal UI.
 

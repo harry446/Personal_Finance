@@ -48,14 +48,14 @@ describe('import candidate validation', () => {
   it('keeps malformed candidate edits out of the review service', () => {
     expect(() =>
       parseCandidateTransactionInput({
-        amount: '-5',
+        amount: '0',
         categoryId: '',
         description: '',
         notes: '',
         transactionDate: '2026-02-30',
         type: 'income',
       }),
-    ).toThrow(/valid calendar date|positive amount|expense or refund/i);
+    ).toThrow(/valid calendar date|greater than \$0\.00|expense or refund/i);
   });
 
   it('identifies exactly the fields that block selecting an incomplete candidate', () => {
@@ -80,8 +80,10 @@ describe('import candidate validation', () => {
     ).toEqual([]);
   });
 
-  it('permits only mutable review states from client input', () => {
+  it('permits only selection state changes from client input', () => {
+    expect(candidateReviewStateSchema.parse('pending')).toBe('pending');
     expect(candidateReviewStateSchema.parse('selected')).toBe('selected');
+    expect(() => candidateReviewStateSchema.parse('excluded')).toThrow();
     expect(() => candidateReviewStateSchema.parse('approved')).toThrow();
   });
 });

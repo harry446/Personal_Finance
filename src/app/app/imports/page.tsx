@@ -4,6 +4,7 @@ import { requireCurrentUser } from '@/lib/current-user';
 import {
   getImportBatchForUser,
   listImportBatchesForUser,
+  listReviewBatchesForUser,
 } from '@/lib/import-review';
 import { incompleteCandidateFields } from '@/lib/import-validation';
 import { listCategoriesForUser } from '@/lib/ledger';
@@ -15,17 +16,20 @@ export default async function ImportsPage({
 }) {
   const user = await requireCurrentUser();
   const { batch: requestedBatch } = await searchParams;
-  const [batches, categories] = await Promise.all([
+  const [batches, categories, reviewBatches] = await Promise.all([
     listImportBatchesForUser(user.id),
     listCategoriesForUser(user.id),
+    listReviewBatchesForUser(user.id),
   ]);
   const requestedBatchId =
     typeof requestedBatch === 'string' ? requestedBatch : undefined;
-  const selectedBatchId = batches.some((batch) => batch.id === requestedBatchId)
+  const selectedBatchId = reviewBatches.some(
+    (batch) => batch.id === requestedBatchId,
+  )
     ? requestedBatchId
-    : (batches.find(
+    : (reviewBatches.find(
         (batch) => batch.status === ImportBatchStatus.READY_FOR_REVIEW,
-      )?.id ?? batches[0]?.id);
+      )?.id ?? reviewBatches[0]?.id);
   const selectedBatch = selectedBatchId
     ? await getImportBatchForUser(user.id, selectedBatchId)
     : null;

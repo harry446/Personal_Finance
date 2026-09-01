@@ -6,11 +6,7 @@ import {
   transactionTypeSchema,
 } from '@/lib/ledger-validation';
 
-export const candidateReviewStateSchema = z.enum([
-  'pending',
-  'selected',
-  'excluded',
-]);
+export const candidateReviewStateSchema = z.enum(['pending', 'selected']);
 
 const optionalDescriptionSchema = z
   .string()

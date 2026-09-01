@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useState } from 'react';
 
 import {
   approveImportBatchAction,
   setCandidateReviewStateAction,
   updateCandidateAction,
 } from '@/app/app/imports/actions';
-import { formatCad, formatTransactionDate } from '@/lib/formatters';
 
 type ActionState = { message: string; status: 'error' | 'success' } | null;
 
@@ -63,81 +62,27 @@ export function ImportsWorkspace({
       aria-labelledby="imports-heading"
       className="mx-auto max-w-[1096px]"
     >
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1
-            className="text-[30px] font-bold leading-[43px] tracking-[-0.02em]"
-            id="imports-heading"
-          >
-            Import transactions
-          </h1>
-          <p className="text-sm leading-5 text-[var(--pf-text-secondary)]">
-            Review every recommendation before it reaches your ledger.
-          </p>
-        </div>
-        <ImportSteps status={batch?.status} />
-      </div>
+      <h1
+        className="text-[30px] font-bold leading-[43px] tracking-[-0.02em]"
+        id="imports-heading"
+      >
+        Import transactions
+      </h1>
+      <p className="text-sm leading-5 text-[var(--pf-text-secondary)]">
+        Review every recommendation before it reaches your ledger.
+      </p>
 
-      <div className="mt-9 grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-w-0 space-y-6">
-          <UploadNotice />
-          {requestedBatchWasUnavailable ? <UnavailableBatchNotice /> : null}
-          {batch ? (
-            <ReviewBatch activeCategories={activeCategories} batch={batch} />
-          ) : (
-            <EmptyReviewQueue />
-          )}
-        </div>
+      <div className="mt-9 space-y-6">
+        <UploadNotice />
+        {requestedBatchWasUnavailable ? <UnavailableBatchNotice /> : null}
+        {batch ? (
+          <ReviewBatch activeCategories={activeCategories} batch={batch} />
+        ) : (
+          <EmptyReviewQueue />
+        )}
         <ImportHistory batches={batches} selectedBatchId={batch?.id ?? null} />
       </div>
     </section>
-  );
-}
-
-function ImportSteps({
-  status,
-}: {
-  status: ImportBatchSummary['status'] | undefined;
-}) {
-  const reviewActive = status === 'READY_FOR_REVIEW';
-  const saveActive = status === 'APPROVED';
-
-  return (
-    <ol
-      aria-label="Import progress"
-      className="flex items-center gap-3 text-xs font-semibold"
-    >
-      <Step active={false} label="Upload" number={1} />
-      <Step active={reviewActive} label="Review" number={2} />
-      <Step active={saveActive} label="Save" number={3} />
-    </ol>
-  );
-}
-
-function Step({
-  active,
-  label,
-  number,
-}: {
-  active: boolean;
-  label: string;
-  number: number;
-}) {
-  return (
-    <li className="flex items-center gap-1.5 text-[var(--pf-text-secondary)]">
-      <span
-        className={`inline-flex size-5 items-center justify-center rounded-full text-[10px] ${
-          active
-            ? 'bg-[var(--pf-action-primary)] text-[var(--pf-bg-surface)]'
-            : 'bg-[var(--pf-border-default)] text-[var(--pf-text-secondary)]'
-        }`}
-      >
-        {number}
-      </span>
-      <span className={active ? 'text-[var(--pf-text-primary)]' : undefined}>
-        {label}
-      </span>
-    </li>
   );
 }
 
@@ -262,8 +207,8 @@ function UnavailableBatchNotice() {
       className="rounded-lg bg-[#fff0ed] px-4 py-3 text-sm text-[var(--pf-status-expense)]"
       role="alert"
     >
-      That import batch is not available in your workspace. Showing your most
-      recent review batch instead.
+      That batch is not awaiting review. Showing your current review queue
+      instead.
     </p>
   );
 }
@@ -322,31 +267,25 @@ function ReviewBatch({
   const selectedCount = batch.candidates.filter(
     (candidate) => candidate.reviewState === 'SELECTED',
   ).length;
-  const approved = batch.status === 'APPROVED';
 
   return (
     <section
       aria-labelledby="review-queue-heading"
       className="rounded-xl border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)]"
     >
-      <div className="flex flex-col gap-4 px-6 pb-5 pt-6 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold tracking-[0.1em] text-[var(--pf-text-secondary)]">
-            REVIEW QUEUE
-          </p>
-          <h2
-            className="mt-2 text-[22px] font-bold leading-[30px]"
-            id="review-queue-heading"
-          >
-            {approved ? 'Saved recommendations' : 'Recommended transactions'}
-          </h2>
-          <p className="mt-1 text-sm leading-5 text-[var(--pf-text-secondary)]">
-            {approved
-              ? `${batch.approvedCount} transaction${batch.approvedCount === 1 ? '' : 's'} saved from this batch.`
-              : 'Edit details, then select only the rows you want to save.'}
-          </p>
-        </div>
-        <BatchStatus status={batch.status} />
+      <div className="px-6 pb-5 pt-6">
+        <p className="text-[11px] font-semibold tracking-[0.1em] text-[var(--pf-text-secondary)]">
+          REVIEW QUEUE
+        </p>
+        <h2
+          className="mt-2 text-[22px] font-bold leading-[30px]"
+          id="review-queue-heading"
+        >
+          Recommended transactions
+        </h2>
+        <p className="mt-1 text-sm leading-5 text-[var(--pf-text-secondary)]">
+          Edit details inline, then select only the rows you want to save.
+        </p>
       </div>
 
       <div className="border-y border-[var(--pf-border-default)]">
@@ -361,7 +300,6 @@ function ReviewBatch({
                 <CandidateReviewRow
                   activeCategories={activeCategories}
                   candidate={candidate}
-                  isReadOnly={approved}
                 />
               </li>
             ))}
@@ -369,18 +307,10 @@ function ReviewBatch({
         )}
       </div>
 
-      {approved ? (
-        <p className="px-6 py-5 text-sm text-[var(--pf-text-secondary)]">
-          Candidate history is retained for this batch. Approved entries can be
-          found in Transactions and the dashboard.
-        </p>
-      ) : (
-        <ApprovalForm batchId={batch.id} selectedCount={selectedCount} />
-      )}
+      <ApprovalForm batchId={batch.id} selectedCount={selectedCount} />
     </section>
   );
 }
-
 function FailedBatch({ batch }: { batch: ImportBatch }) {
   return (
     <section
@@ -404,69 +334,18 @@ function FailedBatch({ batch }: { batch: ImportBatch }) {
 function CandidateReviewRow({
   activeCategories,
   candidate,
-  isReadOnly,
 }: {
   activeCategories: ActiveCategory[];
   candidate: Candidate;
-  isReadOnly: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-
   return (
     <article className="px-6 py-5">
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[36px_minmax(145px,1.2fr)_minmax(115px,.8fr)_minmax(100px,.7fr)_minmax(88px,.55fr)_auto] lg:items-center">
-        <CandidateStateControl candidate={candidate} disabled={isReadOnly} />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold leading-5">
-            {candidate.description || 'Missing description'}
-          </p>
-          <p className="mt-1 text-xs leading-4 text-[var(--pf-text-secondary)]">
-            {candidate.transactionDate
-              ? formatTransactionDate(new Date(candidate.transactionDate))
-              : 'Missing date'}
-            {' · '}
-            {candidate.type
-              ? candidate.type === 'expense'
-                ? 'Expense'
-                : 'Refund'
-              : 'Missing type'}
-          </p>
-        </div>
-        <p className="text-sm text-[var(--pf-text-secondary)]">
-          {candidate.categoryName ?? 'Missing category'}
-        </p>
-        <p
-          className={`text-sm font-semibold ${
-            candidate.type === 'refund'
-              ? 'text-[var(--pf-status-refund)]'
-              : 'text-[var(--pf-status-expense)]'
-          }`}
-        >
-          {candidate.amountCents
-            ? `${candidate.type === 'refund' ? '+' : '−'}${formatCad(candidate.amountCents)}`
-            : 'Missing amount'}
-        </p>
-        <CandidateBadge candidate={candidate} />
-        {isReadOnly ? null : (
-          <div className="flex items-center gap-3 lg:justify-self-end">
-            {candidate.reviewState === 'EXCLUDED' ? null : (
-              <ReviewStateForm
-                candidateId={candidate.id}
-                label="Exclude candidate"
-                reviewState="excluded"
-              >
-                Exclude
-              </ReviewStateForm>
-            )}
-            <button
-              className="text-xs font-semibold text-[var(--pf-action-primary)] hover:text-[#04594e]"
-              onClick={() => setEditing((value) => !value)}
-              type="button"
-            >
-              {editing ? 'Close edit' : 'Edit'}
-            </button>
-          </div>
-        )}
+      <div className="grid gap-3 xl:grid-cols-[36px_minmax(0,1fr)] xl:items-center">
+        <CandidateStateControl candidate={candidate} />
+        <CandidateInlineEditor
+          activeCategories={activeCategories}
+          candidate={candidate}
+        />
       </div>
       {candidate.isIncomplete && candidate.reviewState === 'SELECTED' ? (
         <p className="mt-4 rounded-lg bg-[#fff0ed] px-3 py-2 text-xs leading-4 text-[var(--pf-status-expense)]">
@@ -474,63 +353,23 @@ function CandidateReviewRow({
           before approving the batch.
         </p>
       ) : null}
-      {editing ? (
-        <CandidateEditor
-          activeCategories={activeCategories}
-          candidate={candidate}
-          onComplete={() => setEditing(false)}
-        />
-      ) : null}
     </article>
   );
 }
 
-function CandidateStateControl({
-  candidate,
-  disabled,
-}: {
-  candidate: Candidate;
-  disabled: boolean;
-}) {
-  if (disabled || candidate.reviewState === 'APPROVED') {
-    return (
-      <span
-        aria-label="Approved candidate"
-        className="text-center text-lg text-[var(--pf-action-primary)]"
-      >
-        ✓
-      </span>
-    );
-  }
-
-  if (candidate.reviewState === 'EXCLUDED') {
-    return (
-      <ReviewStateForm
-        candidateId={candidate.id}
-        label="Include candidate in review"
-        reviewState="pending"
-      >
-        ↺
-      </ReviewStateForm>
-    );
-  }
+function CandidateStateControl({ candidate }: { candidate: Candidate }) {
+  const selected = candidate.reviewState === 'SELECTED';
 
   return (
     <ReviewStateForm
       candidateId={candidate.id}
-      label={
-        candidate.reviewState === 'SELECTED'
-          ? 'Unselect candidate'
-          : 'Select candidate'
-      }
-      reviewState={
-        candidate.reviewState === 'SELECTED' ? 'pending' : 'selected'
-      }
+      label={selected ? 'Unselect candidate' : 'Select candidate'}
+      reviewState={selected ? 'pending' : 'selected'}
     >
       <span
         aria-hidden="true"
         className={`inline-flex size-5 items-center justify-center rounded-full border text-xs ${
-          candidate.reviewState === 'SELECTED'
+          selected
             ? 'border-[var(--pf-action-primary)] bg-[var(--pf-action-primary)] text-[var(--pf-bg-surface)]'
             : 'border-[#b8c6bf] text-transparent'
         }`}
@@ -538,35 +377,6 @@ function CandidateStateControl({
         ✓
       </span>
     </ReviewStateForm>
-  );
-}
-
-function CandidateBadge({ candidate }: { candidate: Candidate }) {
-  if (candidate.reviewState === 'APPROVED') {
-    return (
-      <span className="text-xs font-semibold text-[var(--pf-status-refund)]">
-        Saved
-      </span>
-    );
-  }
-  if (candidate.reviewState === 'EXCLUDED') {
-    return (
-      <span className="text-xs font-semibold text-[var(--pf-text-secondary)]">
-        Excluded
-      </span>
-    );
-  }
-  if (candidate.isIncomplete) {
-    return (
-      <span className="text-xs font-semibold text-[var(--pf-status-expense)]">
-        Needs details
-      </span>
-    );
-  }
-  return (
-    <span className="text-xs font-semibold text-[var(--pf-action-primary)]">
-      Ready
-    </span>
   );
 }
 
@@ -579,147 +389,155 @@ function ReviewStateForm({
   candidateId: string;
   children: React.ReactNode;
   label: string;
-  reviewState: 'excluded' | 'pending' | 'selected';
+  reviewState: 'pending' | 'selected';
 }) {
   const action = setCandidateReviewStateAction.bind(null, candidateId);
-  const [state, formAction, pending] = useActionState(action, null);
+  const [, formAction, pending] = useActionState(action, null);
 
   return (
-    <form action={formAction} className="flex flex-col items-start gap-1">
+    <form action={formAction}>
       <input name="reviewState" type="hidden" value={reviewState} />
       <button
         aria-label={label}
-        className={`rounded-full outline-none disabled:cursor-not-allowed disabled:opacity-50 ${typeof children === 'string' ? 'text-xs font-semibold text-[var(--pf-text-secondary)] hover:text-[var(--pf-status-expense)]' : ''}`}
+        className="rounded-full outline-none disabled:cursor-not-allowed disabled:opacity-50"
         disabled={pending}
         type="submit"
       >
         {children}
       </button>
-      <ActionMessage state={state} />
     </form>
   );
 }
 
-function CandidateEditor({
+function CandidateInlineEditor({
   activeCategories,
   candidate,
-  onComplete,
 }: {
   activeCategories: ActiveCategory[];
   candidate: Candidate;
-  onComplete: () => void;
 }) {
   const action = updateCandidateAction.bind(null, candidate.id);
   const [state, formAction, pending] = useActionState(action, null);
-
-  useEffect(() => {
-    if (state?.status === 'success') {
-      onComplete();
-    }
-  }, [onComplete, state]);
+  const [notesOpen, setNotesOpen] = useState(Boolean(candidate.notes));
 
   return (
-    <form
-      action={formAction}
-      className="mt-5 grid gap-4 rounded-xl bg-[var(--pf-bg-canvas)] p-4 sm:grid-cols-2"
-    >
-      <label className="grid gap-1.5 text-xs font-semibold">
-        Date
-        <input
-          className={fieldClassName}
-          defaultValue={candidate.transactionDate?.slice(0, 10) ?? ''}
-          name="transactionDate"
-          type="date"
-        />
-      </label>
-      <label className="grid gap-1.5 text-xs font-semibold">
-        Type
-        <select
-          className={fieldClassName}
-          defaultValue={candidate.type ?? ''}
-          name="type"
-        >
-          <option value="">Choose type</option>
-          <option value="expense">Expense</option>
-          <option value="refund">Refund</option>
-        </select>
-      </label>
-      <label className="grid gap-1.5 text-xs font-semibold sm:col-span-2">
-        Description or merchant
-        <input
-          className={fieldClassName}
-          defaultValue={candidate.description ?? ''}
-          maxLength={160}
-          name="description"
-          type="text"
-        />
-      </label>
-      <label className="grid gap-1.5 text-xs font-semibold">
-        Category
-        <select
-          className={fieldClassName}
-          defaultValue={candidate.categoryId ?? ''}
-          name="categoryId"
-        >
-          <option value="">Choose a category</option>
-          {candidate.categoryId &&
-          !activeCategories.some(
-            (category) => category.id === candidate.categoryId,
-          ) ? (
-            <option value={candidate.categoryId}>
-              {candidate.categoryName ?? 'Unavailable category'}
-            </option>
-          ) : null}
-          {activeCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="grid gap-1.5 text-xs font-semibold">
-        Amount (CAD)
-        <input
-          className={fieldClassName}
-          defaultValue={
-            candidate.amountCents === null
-              ? ''
-              : (candidate.amountCents / 100).toFixed(2)
-          }
-          inputMode="decimal"
-          name="amount"
-          placeholder="0.00"
-          step="0.01"
-          type="number"
-        />
-      </label>
-      <label className="grid gap-1.5 text-xs font-semibold sm:col-span-2">
-        Notes{' '}
-        <span className="font-normal text-[var(--pf-text-secondary)]">
-          (optional)
-        </span>
-        <textarea
-          className={`${fieldClassName} min-h-20 resize-y py-2`}
-          defaultValue={candidate.notes ?? ''}
-          maxLength={1_000}
-          name="notes"
-          rows={3}
-        />
-      </label>
-      <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-2">
-        <ActionMessage state={state} />
-        <button
-          className="rounded-full bg-[var(--pf-action-primary)] px-5 py-2.5 text-xs font-semibold text-[var(--pf-bg-surface)] disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? 'Saving…' : 'Save candidate'}
-        </button>
+    <form action={formAction} className="min-w-0">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[112px_minmax(180px,1.5fr)_minmax(145px,1fr)_112px_132px_auto] xl:items-end">
+        <label className="block">
+          <span className="sr-only">Date</span>
+          <input
+            aria-label="Date"
+            className={fieldClassName}
+            defaultValue={candidate.transactionDate?.slice(0, 10) ?? ''}
+            name="transactionDate"
+            type="date"
+          />
+        </label>
+        <label className="block min-w-0">
+          <span className="sr-only">Description or merchant</span>
+          <input
+            aria-label="Description or merchant"
+            className={fieldClassName}
+            defaultValue={candidate.description ?? ''}
+            maxLength={160}
+            name="description"
+            placeholder="Merchant or description"
+            type="text"
+          />
+        </label>
+        <label className="block min-w-0">
+          <span className="sr-only">Category</span>
+          <select
+            aria-label="Category"
+            className={fieldClassName}
+            defaultValue={candidate.categoryId ?? ''}
+            name="categoryId"
+          >
+            <option value="">Choose a category</option>
+            {candidate.categoryId &&
+            !activeCategories.some(
+              (category) => category.id === candidate.categoryId,
+            ) ? (
+              <option value={candidate.categoryId}>
+                {candidate.categoryName ?? 'Unavailable category'}
+              </option>
+            ) : null}
+            {activeCategories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="sr-only">Amount (CAD)</span>
+          <input
+            aria-label="Amount (CAD)"
+            className={fieldClassName}
+            defaultValue={
+              candidate.amountCents === null
+                ? ''
+                : (candidate.amountCents / 100).toFixed(2)
+            }
+            inputMode="decimal"
+            name="amount"
+            placeholder="Amount"
+            step="0.01"
+            type="number"
+          />
+        </label>
+        <label className="block">
+          <span className="sr-only">Type</span>
+          <select
+            aria-label="Type"
+            className={fieldClassName}
+            defaultValue={candidate.type ?? ''}
+            name="type"
+          >
+            <option value="">Choose type</option>
+            <option value="expense">Expense</option>
+            <option value="refund">Refund</option>
+          </select>
+        </label>
+        <div className="flex items-center justify-end gap-3">
+          <button
+            className="text-xs font-semibold text-[var(--pf-action-primary)] hover:text-[#04594e]"
+            onClick={() => setNotesOpen((value) => !value)}
+            type="button"
+          >
+            {notesOpen ? 'Hide notes' : 'Edit notes'}
+          </button>
+          <button
+            className="rounded-full bg-[var(--pf-action-primary)] px-4 py-2.5 text-xs font-semibold text-[var(--pf-bg-surface)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={pending}
+            type="submit"
+          >
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
+      {notesOpen ? (
+        <label className="mt-3 grid gap-1.5 text-xs font-semibold">
+          Notes{' '}
+          <span className="font-normal text-[var(--pf-text-secondary)]">
+            (optional)
+          </span>
+          <textarea
+            aria-label="Notes"
+            className={`${fieldClassName} min-h-20 resize-y py-2`}
+            defaultValue={candidate.notes ?? ''}
+            maxLength={1_000}
+            name="notes"
+            rows={3}
+          />
+        </label>
+      ) : (
+        <input name="notes" type="hidden" value={candidate.notes ?? ''} />
+      )}
+      <ActionMessage state={state?.status === 'error' ? state : null} />
     </form>
   );
 }
-
 function ApprovalForm({
   batchId,
   selectedCount,
@@ -740,17 +558,22 @@ function ApprovalForm({
           {selectedCount} candidate{selectedCount === 1 ? '' : 's'} selected
         </p>
         <p className="mt-1 text-xs leading-4 text-[var(--pf-text-secondary)]">
-          Approval is all-or-nothing. Excluded candidates stay in this batch and
-          never enter your ledger.
+          Finalizing is permanent. With no selection, every suggested
+          transaction is discarded; otherwise, only selected transactions are
+          saved.
         </p>
         <ActionMessage state={state} />
       </div>
       <button
         className="shrink-0 rounded-full bg-[var(--pf-action-primary)] px-5 py-3 text-xs font-semibold text-[var(--pf-bg-surface)] disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={pending || selectedCount === 0}
+        disabled={pending}
         type="submit"
       >
-        {pending ? 'Approving…' : 'Approve selected'}
+        {pending
+          ? 'Finalizing…'
+          : selectedCount === 0
+            ? 'Discard all'
+            : 'Save selected'}
       </button>
     </form>
   );
@@ -787,14 +610,15 @@ function ImportHistory({
   return (
     <aside
       aria-labelledby="import-history-heading"
-      className="h-fit rounded-xl border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)]"
+      className="rounded-xl border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)]"
     >
       <div className="border-b border-[var(--pf-border-default)] px-5 py-5">
         <h2 className="text-lg font-bold" id="import-history-heading">
           Import history
         </h2>
         <p className="mt-1 text-xs leading-4 text-[var(--pf-text-secondary)]">
-          Reviewable batches stay available after approval.
+          Completed batches are retained for audit history, but never return to
+          the review queue.
         </p>
       </div>
       {batches.length === 0 ? (
@@ -802,16 +626,10 @@ function ImportHistory({
           No import batches yet.
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--pf-border-default)]">
-          {batches.map((batch) => (
-            <li key={batch.id}>
-              <Link
-                aria-current={selectedBatchId === batch.id ? 'page' : undefined}
-                className={`block px-5 py-4 transition-colors hover:bg-[#f1f5f2] ${
-                  selectedBatchId === batch.id ? 'bg-[#eef7f3]' : ''
-                }`}
-                href={`/app/imports?batch=${encodeURIComponent(batch.id)}`}
-              >
+        <ul className="divide-y divide-[var(--pf-border-default)] md:grid md:grid-cols-2 md:divide-y-0">
+          {batches.map((batch) => {
+            const content = (
+              <>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">
                     {formatBatchDate(batch.createdAt)}
@@ -823,15 +641,37 @@ function ImportHistory({
                   {batch.candidateCount === 1 ? '' : 's'} ·{' '}
                   {batch.approvedCount} saved
                 </p>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+
+            return (
+              <li
+                className="border-[var(--pf-border-default)] md:border-b md:[&:nth-child(odd)]:border-r"
+                key={batch.id}
+              >
+                {batch.status === 'APPROVED' ? (
+                  <div className="px-5 py-4">{content}</div>
+                ) : (
+                  <Link
+                    aria-current={
+                      selectedBatchId === batch.id ? 'page' : undefined
+                    }
+                    className={`block px-5 py-4 transition-colors hover:bg-[#f1f5f2] ${
+                      selectedBatchId === batch.id ? 'bg-[#eef7f3]' : ''
+                    }`}
+                    href={`/app/imports?batch=${encodeURIComponent(batch.id)}`}
+                  >
+                    {content}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </aside>
   );
 }
-
 function ActionMessage({ state }: { state: ActionState }) {
   if (!state) {
     return null;

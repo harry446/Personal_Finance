@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { requireCurrentUser } from '@/lib/current-user';
@@ -66,10 +67,7 @@ export async function setCandidateReviewStateAction(
 
     return {
       status: 'success',
-      message:
-        candidate.reviewState === 'EXCLUDED'
-          ? `Candidate ${candidate.ordinal} is excluded from approval.`
-          : `Candidate ${candidate.ordinal} is ready for review.`,
+      message: 'Selection updated.',
     };
   } catch (error) {
     return toActionError(error);
@@ -86,18 +84,15 @@ export async function approveImportBatchAction(
   const user = await requireCurrentUser();
 
   try {
-    const result = await approveImportBatchForUser(user.id, batchId);
+    await approveImportBatchForUser(user.id, batchId);
 
     revalidatePath('/app');
     revalidateImportPaths(batchId);
-
-    return {
-      status: 'success',
-      message: `${result.savedTransactions.length} transaction${result.savedTransactions.length === 1 ? '' : 's'} added to your ledger.`,
-    };
   } catch (error) {
     return toActionError(error);
   }
+
+  redirect('/app/imports');
 }
 
 function revalidateImportPaths(batchId: string) {

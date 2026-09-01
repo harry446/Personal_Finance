@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   approveMock,
+  redirectMock,
   revalidatePathMock,
   requireCurrentUserMock,
   reviewStateMock,
   updateMock,
 } = vi.hoisted(() => ({
   approveMock: vi.fn(),
+  redirectMock: vi.fn(),
   revalidatePathMock: vi.fn(),
   requireCurrentUserMock: vi.fn(),
   reviewStateMock: vi.fn(),
@@ -16,6 +18,10 @@ const {
 
 vi.mock('next/cache', () => ({
   revalidatePath: revalidatePathMock,
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: redirectMock,
 }));
 
 vi.mock('@/lib/current-user', () => ({
@@ -44,24 +50,26 @@ import {
 describe('import review actions', () => {
   beforeEach(() => {
     approveMock.mockReset();
+    redirectMock.mockReset();
     revalidatePathMock.mockReset();
     requireCurrentUserMock.mockReset();
     reviewStateMock.mockReset();
     updateMock.mockReset();
     requireCurrentUserMock.mockResolvedValue({ id: 'user-1' });
+    redirectMock.mockImplementation(() => {
+      throw new Error('NEXT_REDIRECT');
+    });
   });
 
-  it('revalidates the dashboard and import detail after a successful approval', async () => {
+  it('revalidates affected pages and redirects to the queue after a successful finalization', async () => {
     approveMock.mockResolvedValue({
       savedTransactions: [{ id: 'transaction-1' }, { id: 'transaction-2' }],
     });
 
     await expect(
       approveImportBatchAction('batch-1', null, new FormData()),
-    ).resolves.toEqual({
-      message: '2 transactions added to your ledger.',
-      status: 'success',
-    });
+    ).rejects.toThrow('NEXT_REDIRECT');
+    expect(redirectMock).toHaveBeenCalledWith('/app/imports');
     expect(revalidatePathMock).toHaveBeenCalledWith('/app');
     expect(revalidatePathMock).toHaveBeenCalledWith('/app/imports');
     expect(revalidatePathMock).toHaveBeenCalledWith('/app/imports/batch-1');
@@ -88,20 +96,20 @@ describe('import review actions', () => {
     expect(revalidatePathMock).toHaveBeenCalledWith('/app/imports/batch-1');
   });
 
-  it('persists exclusion state without treating the row as a ledger transaction', async () => {
+  it('persists selection state without treating the row as a ledger transaction', async () => {
     reviewStateMock.mockResolvedValue({
       importBatchId: 'batch-1',
       ordinal: 3,
-      reviewState: 'EXCLUDED',
+      reviewState: 'SELECTED',
     });
     const formData = new FormData();
 
-    formData.set('reviewState', 'excluded');
+    formData.set('reviewState', 'selected');
 
     await expect(
       setCandidateReviewStateAction('candidate-3', null, formData),
     ).resolves.toEqual({
-      message: 'Candidate 3 is excluded from approval.',
+      message: 'Selection updated.',
       status: 'success',
     });
     expect(revalidatePathMock).toHaveBeenCalledWith('/app/imports/batch-1');

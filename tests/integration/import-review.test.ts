@@ -16,6 +16,7 @@ import {
   ImportBatchUnavailableError,
   getImportBatchForUser,
   listImportBatchesForUser,
+  listReviewBatchesForUser,
   setCandidateReviewStateForUser,
   updateCandidateForUser,
 } from '@/lib/import-review';
@@ -148,7 +149,7 @@ describe('M4 import review and approval', () => {
     );
   });
 
-  it('approves selected rows only and preserves excluded candidate history', async () => {
+  it('finalizes every row: selected rows save and unselected rows are excluded from the review queue', async () => {
     const user = await createUser('exclusion');
     const groceries = await groceriesFor(user.id);
     const batch = await createBatch(user.id, [
@@ -158,7 +159,7 @@ describe('M4 import review and approval', () => {
         categoryId: null,
         description: 'Uncertain receipt line',
         ordinal: 2,
-        reviewState: CandidateReviewState.EXCLUDED,
+        reviewState: CandidateReviewState.PENDING,
         transactionDate: null,
         type: null,
       },
@@ -199,8 +200,63 @@ describe('M4 import review and approval', () => {
         },
       }),
     ).resolves.toBe(0);
+    expect(
+      (await listReviewBatchesForUser(user.id)).map((item) => item.id),
+    ).not.toContain(batch.id);
   });
 
+  it('finalizes an all-unselected batch without ledger writes', async () => {
+    const user = await createUser('discard-all');
+    const batch = await createBatch(user.id, [
+      {
+        amountCents: null,
+        categoryId: null,
+        description: 'Uncertain first line',
+        ordinal: 1,
+        reviewState: CandidateReviewState.PENDING,
+        transactionDate: null,
+        type: null,
+      },
+      {
+        amountCents: null,
+        categoryId: null,
+        description: 'Uncertain second line',
+        ordinal: 2,
+        reviewState: CandidateReviewState.PENDING,
+        transactionDate: null,
+        type: null,
+      },
+    ]);
+
+    const result = await approveImportBatchForUser(user.id, batch.id);
+
+    expect(result.savedTransactions).toEqual([]);
+    await expect(
+      db.transaction.count({ where: { importBatchId: batch.id } }),
+    ).resolves.toBe(0);
+    const history = await getImportBatchForUser(user.id, batch.id);
+    expect(history).toMatchObject({
+      approvedCount: 0,
+      status: ImportBatchStatus.APPROVED,
+    });
+    expect(history.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ordinal: 1,
+          reviewState: CandidateReviewState.EXCLUDED,
+          savedTransactionId: null,
+        }),
+        expect.objectContaining({
+          ordinal: 2,
+          reviewState: CandidateReviewState.EXCLUDED,
+          savedTransactionId: null,
+        }),
+      ]),
+    );
+    expect(
+      (await listReviewBatchesForUser(user.id)).map((item) => item.id),
+    ).not.toContain(batch.id);
+  });
   it('requires ownership through every batch and candidate path', async () => {
     const owner = await createUser('owner');
     const otherUser = await createUser('other');
@@ -231,7 +287,7 @@ describe('M4 import review and approval', () => {
       }),
     ).rejects.toBeInstanceOf(OwnedRecordNotFoundError);
     await expect(
-      setCandidateReviewStateForUser(otherUser.id, candidate.id, 'excluded'),
+      setCandidateReviewStateForUser(otherUser.id, candidate.id, 'selected'),
     ).rejects.toBeInstanceOf(OwnedRecordNotFoundError);
     await expect(
       approveImportBatchForUser(otherUser.id, batch.id),
@@ -262,7 +318,7 @@ describe('M4 import review and approval', () => {
         categoryId: null,
         description: 'Excluded history row',
         ordinal: 2,
-        reviewState: CandidateReviewState.EXCLUDED,
+        reviewState: CandidateReviewState.PENDING,
         transactionDate: null,
         type: null,
       },

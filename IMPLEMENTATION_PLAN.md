@@ -172,25 +172,25 @@ These owner-managed items are separate from code-completion evidence. They must 
 **Required deliverables.**
 
 - Import batch, candidate transaction, and extraction-log metadata migrations with no uploaded-file blob or byte column.
-- User-scoped batch history/detail and editable candidate-review UI with select/exclude/incomplete states.
-- One all-or-nothing approval service that inserts selected valid transactions, records approved candidate IDs, and preserves excluded rows.
-- Atomicity, nested-ownership, exclusion, validation, and browser review tests.
+- User-scoped import audit history and a temporary review queue with inline editable candidate fields, select/unselect controls, and incomplete-row indicators.
+- One all-or-nothing finalization service that inserts selected valid transactions, records approved candidate IDs, marks every unselected row excluded, supports finalizing an all-unselected batch with zero ledger writes, and removes the completed batch from the review queue.
+- Atomicity, nested-ownership, finalization, validation, inline-editing, and browser review tests.
 
 **Entry criteria.** M2 user/category/transaction ownership contracts are tested; M3 can revalidate dashboard reads.
 
 **Ordered implementation steps.**
 
 1. Add migrations for `import_batches`, `candidate_transactions`, and `extraction_logs` metadata, including ownership through the batch, batch/candidate status enums, candidate ordinal, saved-transaction reference, and expiry fields. Do not add any upload byte/blob column.
-2. Implement user-scoped batch history, batch detail, editable candidate rows, select/exclude state, incomplete-row indicators, and accessible review UI.
-3. Implement approval as one database transaction: load and lock a user-owned batch and selected candidates; validate each selected row and active owned category; insert all transactions; mark candidates approved with saved IDs; update batch counts/status. Any invalid selected row aborts the entire transaction.
-4. Persist excluded candidates in batch history, but block them from ledger insertion. Candidate rows may remain incomplete until selected for approval.
+2. Implement a user-scoped temporary review queue with inline editable candidate fields, select/unselect state, incomplete-row indicators, and accessible controls. Retain completed batch metadata as non-queue audit history.
+3. Implement final approval as one database transaction: load and lock a user-owned batch and selected candidates; validate each selected row and active owned category; insert all selected transactions; mark selected candidates approved with saved IDs; mark every unselected candidate excluded; permit finalization when none are selected; update batch counts/status. Any invalid selected row aborts the entire transaction.
+4. Do not provide an explicit exclusion control: unselected rows are finalized as excluded when the user approves the batch. Preserve final row states in audit history, block excluded rows from ledger insertion, and do not return completed candidates to the review queue. Candidate rows may remain incomplete until selected for approval.
 5. Wire revalidation so approval updates the corresponding dashboard month(s).
 
-**Required tests.** Candidate state/edit validation units; approval atomicity integration test with one invalid selected row; exclusions-never-in-ledger test; candidate/batch nested ownership tests; two-user batch lookup/mutation tests; browser review, error, exclusion, and approval paths.
+**Required tests.** Candidate state/edit validation units; inline editing with manual-form-equivalent field validation; approval atomicity integration test with one invalid selected row; unselected-rows-never-in-ledger/finalization test, including all-discard; candidate/batch nested ownership tests; two-user batch lookup/mutation tests; browser review, error, and completed-batch-removal paths.
 
-**Exit criteria.** A batch with pre-seeded candidates can be reviewed and approved safely, with no partial ledger writes and durable candidate history.
+**Exit criteria.** A pre-seeded batch can be reviewed and finalized safely: selected complete rows enter the ledger atomically, all other rows are durably excluded (including a zero-selection all-discard decision), and no completed candidates remain in the review queue.
 
-**Success metrics.** The only import-to-ledger code path is the atomic approval service; missing required values block selected rows; excluded rows remain visible but have no saved transaction ID.
+**Success metrics.** The only import-to-ledger code path is the atomic approval service; missing required values block selected rows; unselected rows have no saved transaction ID; and approved batches never appear as reviewable candidates.
 
 **Dependencies.** M2, M3, Prisma transactions, and database isolation tests.
 
@@ -213,7 +213,7 @@ These owner-managed items are separate from code-completion evidence. They must 
 
 1. Create the authenticated multipart import route. Accept PDFs, screenshots, and common images; validate metadata and runtime safety conditions without imposing a product upload-size limit.
 2. Create a processing batch before provider work. Hold uploaded bytes and request-local payloads only in memory; release references in `finally` and never write source files to disk, object storage, database, or the OpenAI Files API.
-3. Use the official OpenAI JavaScript SDK Responses API with direct file/image input, `store: false`, versioned prompt, strict JSON schema, and model identifier. The prompt returns actual transactions only and blanks/nulls uncertain fields; it ignores balances, totals, limits, payments, and summaries and never creates categories.
+3. Use the official OpenAI JavaScript SDK Responses API with direct file/image input, `store: false`, versioned prompt, strict JSON schema, and model identifier. The prompt returns actual transactions only and blanks/nulls uncertain fields; it ignores balances, totals, limits, payments, and summaries; it may remove a merchant branch/store designator only when that shortening is highly certain; and it never creates categories.
 4. Zod-validate structured provider output before candidate creation. Map a suggested category only to an existing active owned category when safely matched; otherwise leave it unresolved.
 5. Encrypt raw provider output at rest, attach it to an extraction log with a 30-day expiry, and expose no raw content in normal UI or logs. Implement an idempotent purge that clears ciphertext while retaining non-sensitive batch metadata.
 6. Turn provider/validation failures into safe failed batches. Permit at most one bounded retry while request memory remains; afterward require a new upload and never claim the old source is recoverable.

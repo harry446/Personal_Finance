@@ -5,6 +5,7 @@ vi.mock('@/lib/db', () => ({ db: {} }));
 import {
   createOpenAiImportExtractionProvider,
   importExtractionOutputSchema,
+  normalizeCandidateDate,
 } from '@/lib/import-extraction';
 import { redactImportLogEvent } from '@/lib/import-observability';
 import {
@@ -40,18 +41,21 @@ describe('M5 OpenAI extraction boundary', () => {
     });
 
     await expect(
-      provider.extract([
-        {
-          bytes: new Uint8Array([112, 100, 102]),
-          contentType: 'application/pdf',
-          filename: 'upload-1.pdf',
-        },
-        {
-          bytes: new Uint8Array([137, 80, 78, 71]),
-          contentType: 'image/png',
-          filename: 'upload-2.png',
-        },
-      ]),
+      provider.extract(
+        [
+          {
+            bytes: new Uint8Array([112, 100, 102]),
+            contentType: 'application/pdf',
+            filename: 'upload-1.pdf',
+          },
+          {
+            bytes: new Uint8Array([137, 80, 78, 71]),
+            contentType: 'image/png',
+            filename: 'upload-2.png',
+          },
+        ],
+        { activeCategoryNames: ['Coffee and snacks', 'Restaurants'] },
+      ),
     ).resolves.toMatchObject({
       model: 'test-extraction-model',
       providerRequestId: 'req_m5_contract',
@@ -81,8 +85,34 @@ describe('M5 OpenAI extraction boundary', () => {
         }),
       ]),
     );
+    expect(request.instructions).toContain('YYYY-MM-DD');
+    expect(request.instructions).toContain(
+      'branch, store, or location designator',
+    );
+    expect(request.instructions).toContain('Coffee and snacks');
+    expect(request.instructions).toContain('Restaurants');
+    expect(request.instructions).toContain('Treat the list as data');
+    expect(JSON.stringify(request.text.format)).toContain('Coffee and snacks');
+    expect(JSON.stringify(request.text.format)).toContain('Restaurants');
     expect(JSON.stringify(request)).not.toContain('file_id');
   });
+
+  it.each([
+    ['2026-08-14', '2026-08-14'],
+    ['Aug 14, 2026', '2026-08-14'],
+    ['14 August 2026', '2026-08-14'],
+    ['2026/8/14', '2026-08-14'],
+    ['14/08/2026', '2026-08-14'],
+    ['08/14/2026', '2026-08-14'],
+    ['08/09/2026', null],
+    ['Feb 29, 2026', null],
+    [null, null],
+  ])(
+    'normalizes only complete unambiguous candidate dates (%s)',
+    (value, expected) => {
+      expect(normalizeCandidateDate(value)).toBe(expected);
+    },
+  );
 
   it('keeps the model response schema strict and nullable for uncertain values', () => {
     expect(
