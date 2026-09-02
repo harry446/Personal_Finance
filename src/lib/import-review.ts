@@ -66,11 +66,7 @@ export async function listReviewBatchesForUser(userId: string) {
   return db.importBatch.findMany({
     where: {
       status: {
-        in: [
-          ImportBatchStatus.FAILED,
-          ImportBatchStatus.PROCESSING,
-          ImportBatchStatus.READY_FOR_REVIEW,
-        ],
+        in: [ImportBatchStatus.PROCESSING, ImportBatchStatus.READY_FOR_REVIEW],
       },
       userId,
     },

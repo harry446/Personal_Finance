@@ -53,9 +53,7 @@ export default async function ImportsPage({
               approvedCount: selectedBatch.approvedCount,
               candidateCount: selectedBatch.candidateCount,
               createdAt: selectedBatch.createdAt.toISOString(),
-              failureMessageSafe: selectedBatch.failureMessageSafe,
               id: selectedBatch.id,
-              model: selectedBatch.model,
               status: selectedBatch.status,
               candidates: selectedBatch.candidates.map((candidate) => {
                 const type =

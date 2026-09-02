@@ -149,6 +149,26 @@ describe('M4 import review and approval', () => {
     );
   });
 
+  it('keeps failed batches in audit history but out of the temporary review queue', async () => {
+    const user = await createUser('failed-history');
+    const readyBatch = await createBatch(user.id, []);
+    const failedBatch = await db.importBatch.create({
+      data: {
+        failureCode: 'provider_unavailable',
+        failureMessageSafe: 'We could not prepare this upload right now.',
+        model: 'pre-seeded-m5-failure',
+        status: ImportBatchStatus.FAILED,
+        userId: user.id,
+      },
+    });
+
+    expect(
+      (await listImportBatchesForUser(user.id)).map((batch) => batch.id),
+    ).toEqual(expect.arrayContaining([readyBatch.id, failedBatch.id]));
+    expect(
+      (await listReviewBatchesForUser(user.id)).map((batch) => batch.id),
+    ).toEqual([readyBatch.id]);
+  });
   it('finalizes every row: selected rows save and unselected rows are excluded from the review queue', async () => {
     const user = await createUser('exclusion');
     const groceries = await groceriesFor(user.id);

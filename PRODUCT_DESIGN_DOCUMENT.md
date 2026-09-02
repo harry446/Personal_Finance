@@ -709,7 +709,7 @@ The application will contain sensitive personal finance data. Privacy and data i
 
 ### 11.2 Uploaded Files
 
-For MVP, uploaded source bytes are processed in request memory only and are not stored on disk, in object storage, in the database, or through the OpenAI Files API.
+For MVP, uploaded source bytes are processed in request memory only and are not stored on disk, in object storage, in the database, or through the OpenAI Files API. The browser clears its selected-file list when an extraction request completes, before the user reviews or approves any candidates.
 
 ### 11.3 AI Processing
 

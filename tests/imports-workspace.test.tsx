@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
 }));
 
 vi.mock('@/app/app/imports/actions', () => ({
@@ -12,6 +14,14 @@ vi.mock('@/app/app/imports/actions', () => ({
 }));
 
 import { ImportsWorkspace } from '@/components/imports-workspace';
+
+beforeEach(() => {
+  routerPush.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const batches = [
   {
@@ -30,8 +40,6 @@ describe('ImportsWorkspace', () => {
         activeCategories={[{ id: 'category-1', name: 'Groceries' }]}
         batch={{
           ...batches[0],
-          failureMessageSafe: null,
-          model: 'pre-seeded-m4-review',
           candidates: [
             {
               amountCents: 1_875,
@@ -104,8 +112,6 @@ describe('ImportsWorkspace', () => {
         activeCategories={[]}
         batch={{
           ...batches[0],
-          failureMessageSafe: null,
-          model: 'pre-seeded-m4-review',
           candidates: [
             {
               amountCents: null,
@@ -130,6 +136,91 @@ describe('ImportsWorkspace', () => {
 
     expect(screen.getByText('0 candidates selected')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Discard all' })).toBeEnabled();
+  });
+  it('clears selected browser files after a successful extraction response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            batchId: 'batch-ready',
+            status: 'READY_FOR_REVIEW',
+          }),
+        ok: true,
+      }),
+    );
+
+    render(
+      <ImportsWorkspace
+        activeCategories={[]}
+        batch={null}
+        batches={[]}
+        requestedBatchWasUnavailable={false}
+      />,
+    );
+
+    const input = screen.getByLabelText('Choose import files');
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['PDF'], 'statement.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    });
+    expect(screen.getByText(/1 file selected/)).toBeVisible();
+
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith('/app/imports?batch=batch-ready'),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('No files selected yet.')).toBeVisible(),
+    );
+  });
+
+  it('keeps a failed extraction inline and clears its selected browser files', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            batchId: 'batch-failed',
+            message: 'We could not prepare this upload right now.',
+            status: 'FAILED',
+          }),
+        ok: false,
+      }),
+    );
+
+    render(
+      <ImportsWorkspace
+        activeCategories={[]}
+        batch={null}
+        batches={[]}
+        requestedBatchWasUnavailable={false}
+      />,
+    );
+
+    const input = screen.getByLabelText('Choose import files');
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['PDF'], 'statement.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(
+      await screen.findByRole('alert', {
+        name: '',
+      }),
+    ).toHaveTextContent('We could not prepare this upload right now.');
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(screen.getByText('No files selected yet.')).toBeVisible();
   });
   it('uses the Figma-aligned empty review queue when no pre-seeded batch exists', () => {
     render(

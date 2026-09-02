@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
 
 import {
   approveImportBatchAction,
@@ -42,8 +42,6 @@ type Candidate = {
 
 type ImportBatch = ImportBatchSummary & {
   candidates: Candidate[];
-  failureMessageSafe: string | null;
-  model: string | null;
 };
 
 type CandidateDraft = {
@@ -106,6 +104,15 @@ function UploadNotice() {
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function clearSelectedFiles() {
+    setFiles([]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
 
   async function uploadFiles(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,7 +139,7 @@ function UploadNotice() {
         .json()
         .catch(() => null)) as ImportUploadResponse | null;
 
-      if (payload?.batchId) {
+      if (response.ok && payload?.batchId) {
         router.push(
           `/app/imports?batch=${encodeURIComponent(payload.batchId)}`,
         );
@@ -147,6 +154,7 @@ function UploadNotice() {
     } catch {
       setError('We could not reach the import service. Please try again.');
     } finally {
+      clearSelectedFiles();
       setIsUploading(false);
     }
   }
@@ -178,6 +186,7 @@ function UploadNotice() {
             aria-label="Choose import files"
             className="sr-only"
             multiple
+            ref={fileInputRef}
             onChange={(event) => {
               setError(null);
               setFiles(Array.from(event.currentTarget.files ?? []));
@@ -255,10 +264,6 @@ function ReviewBatch({
   activeCategories: ActiveCategory[];
   batch: ImportBatch;
 }) {
-  if (batch.status === 'FAILED') {
-    return <FailedBatch batch={batch} />;
-  }
-
   if (batch.status === 'PROCESSING') {
     return (
       <section className="rounded-xl border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)] px-6 py-8">
@@ -320,26 +325,6 @@ function ReviewBatch({
     </section>
   );
 }
-function FailedBatch({ batch }: { batch: ImportBatch }) {
-  return (
-    <section
-      aria-labelledby="failed-batch-heading"
-      className="rounded-xl border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)] px-6 py-7"
-    >
-      <p className="text-[11px] font-semibold tracking-[0.1em] text-[var(--pf-status-expense)]">
-        IMPORT FAILED
-      </p>
-      <h2 className="mt-3 text-xl font-bold" id="failed-batch-heading">
-        This batch could not be prepared for review
-      </h2>
-      <p className="mt-2 text-sm leading-5 text-[var(--pf-text-secondary)]">
-        {batch.failureMessageSafe ??
-          'No transactions were added to your ledger. Upload the files again to create a fresh review batch.'}
-      </p>
-    </section>
-  );
-}
-
 function CandidateReviewRow({
   activeCategories,
   candidate,
@@ -681,7 +666,7 @@ function ImportHistory({
                 className="border-[var(--pf-border-default)] md:border-b md:[&:nth-child(odd)]:border-r"
                 key={batch.id}
               >
-                {batch.status === 'APPROVED' ? (
+                {batch.status === 'APPROVED' || batch.status === 'FAILED' ? (
                   <div className="px-5 py-4">{content}</div>
                 ) : (
                   <Link
