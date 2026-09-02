@@ -90,7 +90,7 @@ describe('M5 OpenAI extraction boundary', () => {
     expect(request.input[0].content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          file_data: 'cGRm',
+          file_data: 'data:application/pdf;base64,cGRm',
           filename: 'upload-1.pdf',
           type: 'input_file',
         }),

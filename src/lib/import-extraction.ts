@@ -335,7 +335,7 @@ function toOpenAiInput(upload: ImportUpload) {
 
   if (upload.contentType === 'application/pdf') {
     return {
-      file_data: encoded,
+      file_data: `data:${upload.contentType};base64,${encoded}`,
       filename: upload.filename,
       type: 'input_file' as const,
     };
