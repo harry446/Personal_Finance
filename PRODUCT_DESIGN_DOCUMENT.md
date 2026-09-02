@@ -713,7 +713,7 @@ For MVP, uploaded source bytes are processed in request memory only and are not 
 
 ### 11.3 AI Processing
 
-Uploaded files and extracted content will be sent to OpenAI API endpoints for parsing. Each extraction may also send a bounded list of that same user's confirmed merchant name and active category pairs to improve careful merchant cleanup and category suggestions; it excludes transaction dates, amounts, notes, archived categories, and all other users' data.
+Uploaded files and extracted content will be sent to OpenAI API endpoints for parsing. Each extraction may also send a bounded list of that same user's confirmed merchant name and active category pairs to improve careful merchant cleanup and category suggestions; it excludes transaction dates, amounts, notes, archived categories, and all other users' data. For owner-authorized debugging, the server process log stores the resulting instruction prompt and raw response text unencrypted; multipart file/image bytes and API secrets are not logged.
 
 The product should make this behavior clear to users, especially if the application is later used by family members or broader audiences.
 

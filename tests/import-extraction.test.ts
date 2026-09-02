@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/db', () => ({ db: {} }));
 
@@ -13,6 +13,10 @@ import {
   readImportUploads,
   releaseImportUploads,
 } from '@/lib/import-upload';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const output = {
   transactions: [
@@ -29,6 +33,9 @@ const output = {
 
 describe('M5 OpenAI extraction boundary', () => {
   it('sends direct PDF/image inputs with strict structured output and store disabled', async () => {
+    const consoleInfo = vi
+      .spyOn(console, 'info')
+      .mockImplementation(() => undefined);
     const parse = vi.fn().mockResolvedValue({
       _request_id: 'req_m5_contract',
       output_parsed: output,
@@ -113,6 +120,16 @@ describe('M5 OpenAI extraction boundary', () => {
     expect(JSON.stringify(request.text.format)).toContain('Coffee and snacks');
     expect(JSON.stringify(request.text.format)).toContain('Restaurants');
     expect(JSON.stringify(request)).not.toContain('file_id');
+    expect(consoleInfo).toHaveBeenCalledWith(
+      'openai_import_extraction_prompt',
+      {
+        prompt: request.instructions,
+      },
+    );
+    expect(consoleInfo).toHaveBeenCalledWith(
+      'openai_import_extraction_raw_response',
+      { rawResponse: JSON.stringify(output) },
+    );
   });
 
   it.each([
