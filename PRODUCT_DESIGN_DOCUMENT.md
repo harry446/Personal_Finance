@@ -499,8 +499,8 @@ The following features should be deferred until after MVP:
 5. Multiple financial accounts per user.
 6. Transfers between accounts.
 7. Credit card payment detection and classification.
-8. Merchant/category memory.
-9. AI categorization learning.
+8. Persistent, user-configurable merchant/category rule management beyond the bounded extraction hints.
+9. Model training or broader AI categorization learning beyond the bounded extraction hints.
 10. Non-transaction classification.
 11. Multi-currency support.
 12. Shared household views.
@@ -682,7 +682,8 @@ The extraction prompt should instruct the model to:
 5. Preserve transaction dates as shown in the document.
 6. Return structured data suitable for application parsing.
 7. Allow transactions across multiple months.
-8. Shorten a merchant name only when highly certain that a trailing branch, store, or location designator is incidental; otherwise preserve the source text.
+8. Remove a clearly incidental branch/store suffix or transaction-reference suffix only when the remaining merchant is unmistakable (for example, `FARM BOY #21` becomes `FARM BOY` and `PRESTO FARE/SFW5XTZCLP` becomes `PRESTO FARE`); otherwise preserve the source text.
+9. May use a bounded list of the same user's previously confirmed merchant/category pairs as untrusted hints for both cautious merchant cleanup and suggested category. Send no dates, amounts, or notes; ignore archived categories and conflicting associations; never let a hint override the visible source or invent a value.
 
 ### 10.3 Human Review Requirement
 
@@ -708,13 +709,11 @@ The application will contain sensitive personal finance data. Privacy and data i
 
 ### 11.2 Uploaded Files
 
-For MVP, uploaded source files may be stored for import history and auditability.
-
-Potential storage options may include AWS S3 or Cloudflare R2, but the final technical implementation is outside the scope of this product document.
+For MVP, uploaded source bytes are processed in request memory only and are not stored on disk, in object storage, in the database, or through the OpenAI Files API.
 
 ### 11.3 AI Processing
 
-Uploaded files and extracted content will be sent to OpenAI API endpoints for parsing.
+Uploaded files and extracted content will be sent to OpenAI API endpoints for parsing. Each extraction may also send a bounded list of that same user's confirmed merchant name and active category pairs to improve careful merchant cleanup and category suggestions; it excludes transaction dates, amounts, notes, archived categories, and all other users' data.
 
 The product should make this behavior clear to users, especially if the application is later used by family members or broader audiences.
 

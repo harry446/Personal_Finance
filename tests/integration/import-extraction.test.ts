@@ -4,6 +4,7 @@ import {
   CandidateReviewState,
   ExtractionLogStatus,
   ImportBatchStatus,
+  TransactionType,
 } from '@/generated/prisma/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -40,6 +41,29 @@ async function createUser(label: string) {
   );
 
   return user;
+}
+
+async function createConfirmedTransaction({
+  categoryId,
+  description,
+  transactionDate,
+  userId,
+}: {
+  categoryId: string;
+  description: string;
+  transactionDate: string;
+  userId: string;
+}) {
+  return db.transaction.create({
+    data: {
+      amountCents: 500,
+      categoryId,
+      description,
+      transactionDate: new Date(`${transactionDate}T00:00:00.000Z`),
+      type: TransactionType.EXPENSE,
+      userId,
+    },
+  });
 }
 
 function provider(
@@ -207,6 +231,93 @@ describe('M5 in-memory extraction to candidate workflow', () => {
         encryptionKey,
       ),
     ).toBe(rawOutput);
+  });
+
+  it('supplies only active, consistent merchant/category hints from the importing user', async () => {
+    const owner = await createUser('merchant-hints-owner');
+    const otherUser = await createUser('merchant-hints-other-user');
+    const [
+      coffeeAndSnacks,
+      groceries,
+      restaurants,
+      transportation,
+      otherCoffee,
+    ] = await Promise.all([
+      db.category.findFirstOrThrow({
+        where: { normalizedName: 'coffee and snacks', userId: owner.id },
+      }),
+      db.category.findFirstOrThrow({
+        where: { normalizedName: 'groceries', userId: owner.id },
+      }),
+      db.category.findFirstOrThrow({
+        where: { normalizedName: 'restaurants', userId: owner.id },
+      }),
+      db.category.findFirstOrThrow({
+        where: { normalizedName: 'transportation', userId: owner.id },
+      }),
+      db.category.findFirstOrThrow({
+        where: {
+          normalizedName: 'coffee and snacks',
+          userId: otherUser.id,
+        },
+      }),
+    ]);
+
+    await Promise.all([
+      createConfirmedTransaction({
+        categoryId: coffeeAndSnacks.id,
+        description: 'ENGINEERING SOCIETY',
+        transactionDate: '2026-09-04',
+        userId: owner.id,
+      }),
+      createConfirmedTransaction({
+        categoryId: groceries.id,
+        description: 'FARM BOY',
+        transactionDate: '2026-09-03',
+        userId: owner.id,
+      }),
+      createConfirmedTransaction({
+        categoryId: restaurants.id,
+        description: 'farm boy',
+        transactionDate: '2026-09-02',
+        userId: owner.id,
+      }),
+      createConfirmedTransaction({
+        categoryId: transportation.id,
+        description: 'ARCHIVED TRANSIT SHOP',
+        transactionDate: '2026-09-01',
+        userId: owner.id,
+      }),
+      createConfirmedTransaction({
+        categoryId: otherCoffee.id,
+        description: 'OTHER USER CAFE',
+        transactionDate: '2026-09-05',
+        userId: otherUser.id,
+      }),
+    ]);
+    await db.category.update({
+      where: { id: transportation.id },
+      data: { archivedAt: new Date() },
+    });
+
+    const suppliedContexts: ImportExtractionContext[] = [];
+    const result = await processImportForUser(owner.id, [upload], {
+      provider: provider(
+        { transactions: [] },
+        {
+          onExtract: (context) => suppliedContexts.push(context),
+        },
+      ),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(suppliedContexts).toHaveLength(1);
+    expect(suppliedContexts[0]?.merchantCategoryHints).toEqual([
+      {
+        categoryName: 'Coffee and snacks',
+        merchantName: 'ENGINEERING SOCIETY',
+      },
+    ]);
   });
 
   it('records malformed provider output as a safe failed batch and requires a new upload for recovery', async () => {

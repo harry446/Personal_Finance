@@ -205,6 +205,7 @@ These owner-managed items are separate from code-completion evidence. They must 
 - Authenticated multipart import route that supports PDFs, screenshots, and common images using request-memory files only.
 - Official OpenAI Responses API integration with direct file/image input, strict structured output, `store: false`, versioned prompt, and Zod revalidation.
 - Candidate creation flow that never auto-creates categories or writes ledger transactions.
+- Bounded, user-scoped merchant/category hints drawn only from confirmed ledger descriptions and active categories; hints exclude dates, amounts, notes, and all other users' data.
 - Encrypted raw-output retention record, 30-day idempotent purge, redacted logs, safe failed-batch/re-upload behavior, and tests.
 
 **Entry criteria.** M4 review/approval behavior is complete and proved atomic; host/runtime upload constraints are known and documented.
@@ -213,16 +214,16 @@ These owner-managed items are separate from code-completion evidence. They must 
 
 1. Create the authenticated multipart import route. Accept PDFs, screenshots, and common images; validate metadata and runtime safety conditions without imposing a product upload-size limit.
 2. Create a processing batch before provider work. Hold uploaded bytes and request-local payloads only in memory; release references in `finally` and never write source files to disk, object storage, database, or the OpenAI Files API.
-3. Use the official OpenAI JavaScript SDK Responses API with direct file/image input, `store: false`, versioned prompt, strict JSON schema, and model identifier. The prompt returns actual transactions only and blanks/nulls uncertain fields; it ignores balances, totals, limits, payments, and summaries; it may remove a merchant branch/store designator only when that shortening is highly certain; and it never creates categories.
+3. Use the official OpenAI JavaScript SDK Responses API with direct file/image input, `store: false`, versioned prompt, strict JSON schema, and model identifier. The prompt returns actual transactions only and blanks/nulls uncertain fields; it ignores balances, totals, limits, payments, and summaries; it must remove a clearly incidental merchant branch/store designator or transaction-reference suffix only when the canonical merchant remains unmistakable, with concise positive/negative examples to guide that judgment; and it never creates categories. Before each call, read at most 200 recent user-owned ledger rows and pass at most 40 unique, category-consistent merchant-to-active-category pairs (merchant description/category only; no dates, amounts, notes, archived categories, or other users) as untrusted context. Hints may support cautious merchant cleanup and a suggested category, but never override the source or invent a value.
 4. Zod-validate structured provider output before candidate creation. Map a suggested category only to an existing active owned category when safely matched; otherwise leave it unresolved.
 5. Encrypt raw provider output at rest, attach it to an extraction log with a 30-day expiry, and expose no raw content in normal UI or logs. Implement an idempotent purge that clears ciphertext while retaining non-sensitive batch metadata.
 6. Turn provider/validation failures into safe failed batches. Permit at most one bounded retry while request memory remains; afterward require a new upload and never claim the old source is recoverable.
 
-**Required tests.** Multipart authentication/type handling; provider request contract mocked at the boundary; malformed structured output; no automatic ledger insertion; candidate/category mapping; safe failed batch; retention purge idempotence; redaction; cross-user import/batch access; browser upload-to-review flow with mocked provider.
+**Required tests.** Multipart authentication/type handling; provider request contract mocked at the boundary; malformed structured output; no automatic ledger insertion; candidate/category mapping; merchant/category-hint ownership, active-category, and conflicting-history filtering; safe failed batch; retention purge idempotence; redaction; cross-user import/batch access; browser upload-to-review flow with mocked provider.
 
 **Exit criteria.** Supported in-memory uploads create reviewable candidates or a safe failed batch, and only a later M4 approval action can write transactions.
 
-**Success metrics.** Source bytes never appear in durable storage or logs; all OpenAI calls use `store: false`; raw output ciphertext expires after 30 days; zero tests permit an extraction call to insert into `transactions`.
+**Success metrics.** Source bytes never appear in durable storage or logs; all OpenAI calls use `store: false`; prompt hints contain only a bounded importing user's merchant/category pairs and never dates, amounts, notes, archived categories, or another user's data; raw output ciphertext expires after 30 days; zero tests permit an extraction call to insert into `transactions`.
 
 **Dependencies.** M4, `OPENAI_API_KEY`, encryption key management, multipart-capable hosting, and approved OpenAI data/privacy disclosure.
 
