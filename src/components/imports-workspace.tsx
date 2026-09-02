@@ -46,6 +46,15 @@ type ImportBatch = ImportBatchSummary & {
   model: string | null;
 };
 
+type CandidateDraft = {
+  amount: string;
+  categoryId: string;
+  description: string;
+  notes: string;
+  transactionDate: string;
+  type: string;
+};
+
 export function ImportsWorkspace({
   activeCategories,
   batch,
@@ -418,18 +427,30 @@ function CandidateInlineEditor({
 }) {
   const action = updateCandidateAction.bind(null, candidate.id);
   const [state, formAction, pending] = useActionState(action, null);
+  const [draft, setDraft] = useState(() => candidateToDraft(candidate));
   const [notesOpen, setNotesOpen] = useState(Boolean(candidate.notes));
 
+  function updateDraft(values: Partial<CandidateDraft>) {
+    setDraft((current) => ({ ...current, ...values }));
+  }
+
   return (
-    <form action={formAction} className="min-w-0">
+    <form
+      action={formAction}
+      className="min-w-0"
+      onReset={(event) => event.preventDefault()}
+    >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[112px_minmax(180px,1.5fr)_minmax(145px,1fr)_112px_132px_auto] xl:items-end">
         <label className="block">
           <span className="sr-only">Date</span>
           <input
             aria-label="Date"
             className={fieldClassName}
-            defaultValue={candidate.transactionDate?.slice(0, 10) ?? ''}
             name="transactionDate"
+            onChange={(event) =>
+              updateDraft({ transactionDate: event.currentTarget.value })
+            }
+            value={draft.transactionDate}
             type="date"
           />
         </label>
@@ -438,9 +459,12 @@ function CandidateInlineEditor({
           <input
             aria-label="Description or merchant"
             className={fieldClassName}
-            defaultValue={candidate.description ?? ''}
             maxLength={160}
             name="description"
+            onChange={(event) =>
+              updateDraft({ description: event.currentTarget.value })
+            }
+            value={draft.description}
             placeholder="Merchant or description"
             type="text"
           />
@@ -450,8 +474,11 @@ function CandidateInlineEditor({
           <select
             aria-label="Category"
             className={fieldClassName}
-            defaultValue={candidate.categoryId ?? ''}
             name="categoryId"
+            onChange={(event) =>
+              updateDraft({ categoryId: event.currentTarget.value })
+            }
+            value={draft.categoryId}
           >
             <option value="">Choose a category</option>
             {candidate.categoryId &&
@@ -474,13 +501,12 @@ function CandidateInlineEditor({
           <input
             aria-label="Amount (CAD)"
             className={fieldClassName}
-            defaultValue={
-              candidate.amountCents === null
-                ? ''
-                : (candidate.amountCents / 100).toFixed(2)
-            }
             inputMode="decimal"
             name="amount"
+            onChange={(event) =>
+              updateDraft({ amount: event.currentTarget.value })
+            }
+            value={draft.amount}
             placeholder="Amount"
             step="0.01"
             type="number"
@@ -491,8 +517,11 @@ function CandidateInlineEditor({
           <select
             aria-label="Type"
             className={fieldClassName}
-            defaultValue={candidate.type ?? ''}
             name="type"
+            onChange={(event) =>
+              updateDraft({ type: event.currentTarget.value })
+            }
+            value={draft.type}
           >
             <option value="">Choose type</option>
             <option value="expense">Expense</option>
@@ -525,14 +554,17 @@ function CandidateInlineEditor({
           <textarea
             aria-label="Notes"
             className={`${fieldClassName} min-h-20 resize-y py-2`}
-            defaultValue={candidate.notes ?? ''}
             maxLength={1_000}
             name="notes"
+            onChange={(event) =>
+              updateDraft({ notes: event.currentTarget.value })
+            }
+            value={draft.notes}
             rows={3}
           />
         </label>
       ) : (
-        <input name="notes" type="hidden" value={candidate.notes ?? ''} />
+        <input name="notes" type="hidden" value={draft.notes} />
       )}
       <ActionMessage state={state?.status === 'error' ? state : null} />
     </form>
@@ -672,6 +704,20 @@ function ImportHistory({
     </aside>
   );
 }
+function candidateToDraft(candidate: Candidate): CandidateDraft {
+  return {
+    amount:
+      candidate.amountCents === null
+        ? ''
+        : (candidate.amountCents / 100).toFixed(2),
+    categoryId: candidate.categoryId ?? '',
+    description: candidate.description ?? '',
+    notes: candidate.notes ?? '',
+    transactionDate: candidate.transactionDate?.slice(0, 10) ?? '',
+    type: candidate.type ?? '',
+  };
+}
+
 function ActionMessage({ state }: { state: ActionState }) {
   if (!state) {
     return null;

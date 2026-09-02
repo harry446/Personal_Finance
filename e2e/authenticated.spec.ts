@@ -29,20 +29,29 @@ async function seedMockedReviewBatch() {
       throw new Error('The authenticated browser user was not found.');
     }
 
-    const category = await client.query<{ id: string }>(
-      `SELECT "id" FROM "categories"
-       WHERE "user_id" = $1 AND "normalized_name" = 'groceries'`,
+    const categories = await client.query<{
+      id: string;
+      normalizedName: string;
+    }>(
+      `SELECT "id", "normalized_name" AS "normalizedName" FROM "categories"
+       WHERE "user_id" = $1 AND "normalized_name" IN ('groceries', 'restaurants')`,
       [userId],
     );
-    const categoryId = category.rows[0]?.id;
+    const categoryId = categories.rows.find(
+      (category) => category.normalizedName === 'groceries',
+    )?.id;
+    const alternateCategoryId = categories.rows.find(
+      (category) => category.normalizedName === 'restaurants',
+    )?.id;
 
-    if (!categoryId) {
+    if (!categoryId || !alternateCategoryId) {
       throw new Error(
-        'The authenticated browser groceries category was not found.',
+        'The authenticated browser groceries and restaurants categories were not found.',
       );
     }
 
     const batchId = randomUUID();
+    const candidateId = randomUUID();
 
     await client.query(
       `INSERT INTO "import_batches" (
@@ -54,14 +63,45 @@ async function seedMockedReviewBatch() {
       `INSERT INTO "candidate_transactions" (
         "id", "import_batch_id", "ordinal", "transaction_date", "type", "amount_cents", "description", "category_id", "review_state", "updated_at"
       ) VALUES ($1, $2, 1, '2026-08-14', 'expense', 2145, 'M5 mocked upload candidate', $3, 'pending', CURRENT_TIMESTAMP)`,
-      [randomUUID(), batchId, categoryId],
+      [candidateId, batchId, categoryId],
     );
 
-    return { batchId, categoryId };
+    return { alternateCategoryId, batchId, candidateId, categoryId };
   } finally {
     await client.end();
   }
 }
+
+async function readMockedReviewCandidate(candidateId: string) {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL is required for authenticated browser tests.',
+    );
+  }
+
+  const client = new Client({ connectionString });
+
+  await client.connect();
+
+  try {
+    const result = await client.query<{
+      categoryId: string | null;
+      type: 'expense' | 'refund' | null;
+    }>(
+      `SELECT "category_id" AS "categoryId", "type"::text AS "type"
+       FROM "candidate_transactions"
+       WHERE "id" = $1`,
+      [candidateId],
+    );
+
+    return result.rows[0] ?? null;
+  } finally {
+    await client.end();
+  }
+}
+
 test('creates a manual expense and reports safe field validation', async ({
   page,
 }) => {
@@ -205,7 +245,8 @@ test('uploads a supported file and opens the review queue with a mocked extracti
   await page.goto('/app/imports');
   await page.waitForLoadState('networkidle');
 
-  const { batchId, categoryId } = await seedMockedReviewBatch();
+  const { alternateCategoryId, batchId, candidateId, categoryId } =
+    await seedMockedReviewBatch();
   await page.route('**/api/imports', async (route) => {
     expect(route.request().method()).toBe('POST');
     await route.fulfill({
@@ -252,4 +293,34 @@ test('uploads a supported file and opens the review queue with a mocked extracti
   await expect(extractedCandidate.getByLabel('Amount (CAD)')).toHaveValue(
     '21.45',
   );
+
+  await extractedCandidate
+    .getByLabel('Category')
+    .selectOption(alternateCategoryId);
+  await extractedCandidate.getByLabel('Type').selectOption('refund');
+  await extractedCandidate
+    .getByRole('button', { name: 'Save', exact: true })
+    .click();
+
+  await expect
+    .poll(() => readMockedReviewCandidate(candidateId))
+    .toEqual({
+      categoryId: alternateCategoryId,
+      type: 'refund',
+    });
+  await expect(extractedCandidate.getByLabel('Category')).toHaveValue(
+    alternateCategoryId,
+  );
+  await expect(extractedCandidate.getByLabel('Type')).toHaveValue('refund');
+
+  await extractedCandidate
+    .getByRole('button', { name: 'Save', exact: true })
+    .click();
+
+  await expect
+    .poll(() => readMockedReviewCandidate(candidateId))
+    .toEqual({
+      categoryId: alternateCategoryId,
+      type: 'refund',
+    });
 });

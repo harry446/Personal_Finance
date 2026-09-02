@@ -8,7 +8,7 @@ const authStatePath = path.resolve('e2e/.auth/seeded-user.json');
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   globalSetup: './e2e/global-setup.ts',
   retries: process.env.CI ? 2 : 0,
