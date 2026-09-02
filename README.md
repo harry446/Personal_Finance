@@ -111,3 +111,5 @@ Before enabling live extraction, configure these untracked deployment secrets:
 The application stores encrypted raw Responses output for 30 days only. Configure the deployment scheduler to call `POST /api/internal/purge-extractions` at least daily with `Authorization: Bearer <EXTRACTION_PURGE_SECRET>`. This operation is idempotent: it clears only expired ciphertext and retains non-sensitive batch metadata. Each new import also makes a best-effort purge call. Do not expose this endpoint or any of the listed secrets to the browser.
 
 The chosen host must support the request-body size and synchronous execution duration required by the files a user submits. These are operational platform constraints, not a product file-size limit. Before enabling this feature for anyone beyond the owner, publish a privacy notice that explains that selected uploads are sent to OpenAI for extraction. `store: false` prevents intentional Responses state retention, but OpenAI's published data controls describe exceptional image/file abuse-monitoring retention.
+
+TODO: Experience with 5.6 Luna or 5.4 mini (maybe 5.4 mini gives better performance)?
