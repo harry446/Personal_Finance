@@ -370,7 +370,7 @@ Workflow:
 Extraction expectations:
 
 1. The AI should only return actual transaction entries.
-2. The AI should not return balances, credit limits, statement totals, payment summaries, or other non-transaction information.
+2. The AI should not return balances, credit limits, statement totals, payment summaries, clearly identified credit-card balance repayments, or other non-transaction information.
 3. If the AI cannot determine a field confidently, it should leave that field blank rather than guessing.
 4. Candidate transactions may span multiple calendar months.
 5. Candidate transactions are not saved until approved by the user.
@@ -676,7 +676,7 @@ The AI extraction process should attempt to identify:
 The extraction prompt should instruct the model to:
 
 1. Return only actual transaction entries.
-2. Ignore balances, statement totals, payment summaries, credit limits, and other non-transaction rows.
+2. Ignore balances, statement totals, payment summaries, credit limits, clearly identified credit-card balance repayments, and other non-transaction rows.
 3. Leave fields blank when uncertain.
 4. Avoid inventing missing information.
 5. Preserve transaction dates as shown in the document.

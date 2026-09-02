@@ -101,6 +101,8 @@ describe('M5 OpenAI extraction boundary', () => {
       ]),
     );
     expect(request.instructions).toContain('YYYY-MM-DD');
+    expect(request.instructions).toContain('credit-card balance repayment');
+    expect(request.instructions).toContain('credit-card payment');
     expect(request.instructions).toContain('merchant-name cleanup');
     expect(request.instructions).toContain('FARM BOY #21');
     expect(request.instructions).toContain('T&T SUPERMARKET #028');

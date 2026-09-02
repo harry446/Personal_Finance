@@ -23,7 +23,7 @@ import { extractionExpiryDate } from '@/lib/import-retention';
 import { transactionDateSchema } from '@/lib/ledger-validation';
 
 export const OPENAI_EXTRACTION_MODEL = 'gpt-4.1-mini-2025-04-14';
-export const EXTRACTION_PROMPT_VERSION = '2026-09-02-v7';
+export const EXTRACTION_PROMPT_VERSION = '2026-09-02-v8';
 
 const MAX_AMOUNT_CENTS = 2_147_483_647;
 const MONTH_NUMBERS = new Map([
@@ -209,7 +209,7 @@ function buildExtractionInstructions({
     : 'No confirmed merchant-category hints are available; determine description cleanup and suggestedCategory from the upload alone.';
 
   return [
-    'Return actual transactions only. Ignore balances, statement totals, credit limits, payment summaries, account summaries, and non-transaction rows.',
+    'Return actual transactions only. Ignore balances, statement totals, credit limits, payment summaries, account summaries, and non-transaction rows. Do not return a clearly identified payment that repays or pays down a credit-card balance from earlier spending, such as a credit-card payment or payment-received entry: it settles prior transactions rather than recording new spending or a refund. Do not exclude a purchase merely because its merchant name contains the word payment unless it is clearly a credit-card balance repayment.',
     'Use positive integer CAD cents for amountCents.',
     'For transactionDate, when a complete and unambiguous calendar date is visibly present in the upload, convert it to YYYY-MM-DD. Do not preserve the source date formatting. Return null only when the date is absent, incomplete, or genuinely ambiguous; never guess a missing year or date.',
     'For description, perform careful merchant-name cleanup for bookkeeping. Return a concise canonical merchant only when it is identifiable from the source; remove a trailing branch/store code or transaction-reference suffix only when it clearly does not distinguish the merchant. Required examples: "FARM BOY #21" becomes "FARM BOY"; "T&T SUPERMARKET #028" becomes "T&T SUPERMARKET"; "STARBUCKS 16144" becomes "STARBUCKS"; "BURGER KING #17885" becomes "BURGER KING"; and "PRESTO FARE/SFW5XTZCLP" becomes "PRESTO FARE". Counterexamples: preserve "7-ELEVEN", "99 RANCH MARKET", and "SUSHI 88" when a number may be part of the merchant identity. Preserve the original text when shortening would be uncertain, or when a suffix could be part of the merchant identity, a product, or a location whose role is unclear. Do not invent, expand, or otherwise rewrite merchant names.',
