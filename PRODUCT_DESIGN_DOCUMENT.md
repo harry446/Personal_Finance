@@ -683,7 +683,7 @@ The extraction prompt should instruct the model to:
 6. Return structured data suitable for application parsing.
 7. Allow transactions across multiple months.
 8. Remove a clearly incidental branch/store suffix or transaction-reference suffix only when the remaining merchant is unmistakable (for example, `FARM BOY #21` becomes `FARM BOY` and `PRESTO FARE/SFW5XTZCLP` becomes `PRESTO FARE`); otherwise preserve the source text.
-9. May use a bounded list of the same user's previously confirmed merchant/category pairs as untrusted hints for both cautious merchant cleanup and suggested category. Send no dates, amounts, or notes; ignore archived categories and conflicting associations; never let a hint override the visible source or invent a value.
+9. May use a bounded list of the same user's previously confirmed merchant/category pairs as untrusted canonicalization hints for both merchant cleanup and suggested category. Send no dates, amounts, or notes; ignore archived categories and conflicting associations. Use a hint only for an exact or clearly close visible merchant variant, removing only clearly incidental payment-processor prefixes, branch/store/campus/city suffixes, country/currency markers, or payment descriptors. For example, with confirmed history, `HERO TEA WATERLOO` becomes `HERO TEA`, `AIRBNB PAYMENTS UK CAD` becomes `AIRBNB`, `SP J J PET CLUB` becomes `J&J PET CLUB`, and `UW TIM HORTONS DC` becomes `TIM HORTONS`. Do not make a blind textual replacement: retain useful service words such as `PRESTO FARE` even if prior history only contains `PRESTO`; never let a hint invent a value or override conflicting visible evidence.
 
 ### 10.3 Human Review Requirement
 
