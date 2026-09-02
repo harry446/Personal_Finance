@@ -37,16 +37,22 @@ function transaction(
 }
 
 describe('monthly dashboard calculations', () => {
-  it('defaults to the current UTC calendar month and validates YYYY-MM input', () => {
-    expect(currentDashboardMonth(new Date('2026-08-31T23:59:59.000Z'))).toBe(
+  it('defaults to the current America/Toronto calendar month and validates YYYY-MM input', () => {
+    expect(currentDashboardMonth(new Date('2026-09-01T03:59:59.000Z'))).toBe(
       '2026-08',
     );
     expect(
-      parseDashboardMonth(undefined, new Date('2026-08-31T23:59:59.000Z')),
+      parseDashboardMonth(undefined, new Date('2026-09-01T04:00:00.000Z')),
     ).toMatchObject({
-      key: '2026-08',
-      start: new Date('2026-08-01T00:00:00.000Z'),
+      key: '2026-09',
+      start: new Date('2026-09-01T00:00:00.000Z'),
     });
+    expect(currentDashboardMonth(new Date('2026-12-01T04:59:59.000Z'))).toBe(
+      '2026-11',
+    );
+    expect(currentDashboardMonth(new Date('2026-12-01T05:00:00.000Z'))).toBe(
+      '2026-12',
+    );
     expect(() => parseDashboardMonth('2026-13')).toThrow(
       'Choose a month in YYYY-MM format.',
     );

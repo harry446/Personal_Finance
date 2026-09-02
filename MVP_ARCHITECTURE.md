@@ -14,7 +14,7 @@ Use one TypeScript **Next.js** application (App Router) containing the browser U
 | AI extraction | Official OpenAI JavaScript SDK, Responses API, structured JSON output | The API accepts image and file input, including PDFs; a strict schema makes candidate creation predictable. Send requests with `store: false` and do not use the Files API. |
 | Styling/components | Existing project conventions; otherwise Tailwind CSS plus a small accessible component set | Fast to implement and easy to match to the Figma flows without creating a separate design system. |
 
-MVP accepts and presents **Canadian dollars only**. Format currency with the `en-CA` locale and `CAD` currency code. Store every amount as positive integer cents (`amount_cents`); transaction type supplies the accounting sign. Use `DATE` for a transaction date and UTC timestamps for audit fields. Do not use floating-point money or a time-of-day to determine reporting months. RMB/Chinese presentation and multi-currency are future scope.
+MVP accepts and presents **Canadian dollars only**. Format currency with the `en-CA` locale and `CAD` currency code. Store every amount as positive integer cents (`amount_cents`); transaction type supplies the accounting sign. Use `DATE` for a transaction date and UTC timestamps for audit fields. Use the IANA `America/Toronto` zone (EST/EDT) to choose the default current dashboard month; do not use a time-of-day to reassign a stored transaction date to a reporting month. RMB/Chinese presentation and multi-currency are future scope.
 
 ## 2. High-level system architecture
 

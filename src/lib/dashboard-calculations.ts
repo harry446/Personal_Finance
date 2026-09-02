@@ -5,6 +5,14 @@ export const dashboardMonthSchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month in YYYY-MM format.');
 
+export const DASHBOARD_PRESENTATION_TIME_ZONE = 'America/Toronto';
+
+const dashboardMonthFormatter = new Intl.DateTimeFormat('en-CA', {
+  month: '2-digit',
+  timeZone: DASHBOARD_PRESENTATION_TIME_ZONE,
+  year: 'numeric',
+});
+
 export type DashboardMonth = {
   endExclusive: Date;
   key: string;
@@ -56,9 +64,15 @@ export type MonthlyDashboard = {
 };
 
 export function currentDashboardMonth(now = new Date()) {
-  return `${now.getUTCFullYear().toString().padStart(4, '0')}-${String(
-    now.getUTCMonth() + 1,
-  ).padStart(2, '0')}`;
+  const parts = dashboardMonthFormatter.formatToParts(now);
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const year = parts.find((part) => part.type === 'year')?.value;
+
+  if (!month || !year) {
+    throw new Error('Could not determine the dashboard month.');
+  }
+
+  return `${year}-${month}`;
 }
 
 export function parseDashboardMonth(

@@ -258,7 +258,7 @@ Requirements:
 
 ### 7.1.2 Monthly Dashboard
 
-The dashboard is the main page of the application and should default to the current calendar month.
+The dashboard is the main page of the application and should default to the current calendar month in the `America/Toronto` presentation context, which follows EST/EDT daylight-saving transitions.
 
 Required dashboard information:
 

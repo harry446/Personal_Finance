@@ -150,7 +150,7 @@ These owner-managed items are separate from code-completion evidence. They must 
 
 **Ordered implementation steps.**
 
-1. Define and validate a server-side `YYYY-MM` month input; default to the current calendar month in the user’s configured presentation context.
+1. Define and validate a server-side `YYYY-MM` month input; default to the current calendar month in the MVP's `America/Toronto` presentation context, which follows EST/EDT daylight-saving transitions.
 2. Build a user-scoped dashboard service that returns gross expenses, refunds, net spending, category net totals, daily trend, and recent transactions using `transaction_date` only.
 3. Build responsive dashboard states for empty, loading, failure, and populated data; present all money in CAD/`en-CA`.
 4. Ensure create, edit, and delete mutations revalidate the affected month(s), including records moved across months by editing.

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  default: (props: React.ComponentProps<'img'>) => <img {...props} />,
+  default: () => null,
 }));
 
 vi.mock('@/app/app/actions', () => ({
