@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { BudgetProgress } from '@/components/budget-progress';
 import type { MonthlyDashboard } from '@/lib/dashboard-calculations';
 import { formatCad } from '@/lib/formatters';
 
@@ -9,7 +10,12 @@ export function DashboardWorkspace({
   dashboard: MonthlyDashboard;
 }) {
   if (!dashboard.hasTransactions) {
-    return <DashboardEmptyState month={dashboard.month.key} />;
+    return (
+      <DashboardEmptyState
+        budget={dashboard.budget}
+        month={dashboard.month.key}
+      />
+    );
   }
 
   const monthLabel = formatMonth(dashboard.month.key);
@@ -66,6 +72,12 @@ export function DashboardWorkspace({
         />
       </section>
 
+      <BudgetProgress
+        budget={dashboard.budget}
+        monthLabel={monthLabel}
+        monthlySpendingCents={dashboard.netSpendingCents}
+      />
+
       <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
         <TrendCard dashboard={dashboard} monthLabel={monthLabel} />
         <CategoryCard categoryTotals={dashboard.categoryTotals} />
@@ -79,7 +91,13 @@ export function DashboardWorkspace({
   );
 }
 
-export function DashboardEmptyState({ month }: { month: string }) {
+export function DashboardEmptyState({
+  budget,
+  month,
+}: {
+  budget?: MonthlyDashboard['budget'];
+  month: string;
+}) {
   const monthLabel = formatMonth(month);
   const previousMonth = shiftMonth(month, -1);
   const nextMonth = shiftMonth(month, 1);
@@ -129,6 +147,11 @@ export function DashboardEmptyState({ month }: { month: string }) {
           Add your first transaction
         </Link>
       </section>
+      <BudgetProgress
+        budget={budget}
+        monthLabel={monthLabel}
+        monthlySpendingCents={0}
+      />
     </div>
   );
 }

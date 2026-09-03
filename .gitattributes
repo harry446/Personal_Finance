@@ -1,0 +1,2 @@
+# Keep tracked text in LF form across Windows, macOS, and Linux.
+* text=auto eol=lf

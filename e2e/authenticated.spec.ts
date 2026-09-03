@@ -324,3 +324,38 @@ test('uploads a supported file and opens the review queue with a mocked extracti
       type: 'refund',
     });
 });
+
+test('enables budget mode, saves an active-category budget, and opens its detailed progress', async ({
+  page,
+}) => {
+  await page.goto('/app/budgets');
+
+  await expect(page.getByRole('heading', { name: 'Budgets' })).toBeVisible();
+  await page.getByRole('button', { name: 'Turn budget mode on' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Category budgets' }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Set budget for Groceries' }).click();
+  await page.getByLabel('Monthly amount (CAD)').fill('300');
+  await page.getByLabel('Budget behavior').selectOption('rollover');
+  await page.getByRole('button', { name: 'Save budget' }).click();
+
+  await expect(
+    page.getByRole('button', { name: 'Edit budget for Groceries' }),
+  ).toBeVisible();
+
+  await page.goto('/app');
+  const budgetSummary = page.getByRole('link', {
+    name: /Open detailed budgets/,
+  });
+  await expect(budgetSummary).toBeVisible();
+  await expect(budgetSummary).toContainText('Monthly budget');
+  await expect(budgetSummary).not.toContainText('Groceries');
+  await budgetSummary.click();
+
+  await page.waitForURL('/app/budgets');
+  await expect(
+    page.getByRole('progressbar', { name: 'Groceries budget progress' }),
+  ).toBeVisible();
+});

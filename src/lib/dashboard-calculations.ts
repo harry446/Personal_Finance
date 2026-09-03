@@ -1,6 +1,8 @@
 import { TransactionType } from '@/generated/prisma/client';
 import { z } from 'zod';
 
+import type { BudgetDashboard } from '@/lib/budget-calculations';
+
 export const dashboardMonthSchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Choose a month in YYYY-MM format.');
@@ -40,6 +42,7 @@ export type MonthlyDashboard = {
     name: string;
     netCents: number;
   }>;
+  budget?: BudgetDashboard;
   dailyTrend: Array<{
     date: string;
     expenseCents: number;

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { getBudgetDashboardForMonth } from '@/lib/budgets';
 import {
   buildMonthlyDashboard,
   parseDashboardMonth,
@@ -12,7 +13,7 @@ export async function getMonthlyDashboardForUser(
   rawMonth?: unknown,
 ): Promise<MonthlyDashboard> {
   const month = parseDashboardMonth(rawMonth);
-  const transactions = await db.transaction.findMany({
+  const transactionsPromise = db.transaction.findMany({
     where: {
       transactionDate: {
         gte: month.start,
@@ -37,6 +38,10 @@ export async function getMonthlyDashboardForUser(
     },
     orderBy: { transactionDate: 'desc' },
   });
+  const [transactions, budget] = await Promise.all([
+    transactionsPromise,
+    getBudgetDashboardForMonth(userId, month),
+  ]);
 
-  return buildMonthlyDashboard(month, transactions);
+  return { ...buildMonthlyDashboard(month, transactions), budget };
 }

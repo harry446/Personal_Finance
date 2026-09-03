@@ -22,6 +22,12 @@ vi.mock('@/lib/current-user', () => ({
   requireCurrentUser: requireCurrentUserMock,
 }));
 
+vi.mock('@/lib/budgets', () => ({
+  BudgetCategoryUnavailableError: class BudgetCategoryUnavailableError extends Error {},
+  setBudgetModeForUser: vi.fn(),
+  upsertCurrentBudgetConfigurationForUser: vi.fn(),
+}));
+
 vi.mock('@/lib/ledger', () => ({
   ArchivedCategoryError: class ArchivedCategoryError extends Error {},
   archiveCategoryForUser: vi.fn(),

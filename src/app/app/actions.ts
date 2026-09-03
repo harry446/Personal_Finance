@@ -3,6 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import {
+  BudgetCategoryUnavailableError,
+  setBudgetModeForUser,
+  upsertCurrentBudgetConfigurationForUser,
+} from '@/lib/budgets';
+
 import { requireCurrentUser } from '@/lib/current-user';
 import {
   archiveCategoryForUser,
@@ -34,6 +40,57 @@ type ActionResult = {
   status: 'error' | 'success';
 };
 
+const budgetModeToggleSchema = z.object({
+  enabled: z.enum(['true', 'false']).transform((value) => value === 'true'),
+});
+
+export async function setBudgetModeAction(
+  _previousState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireCurrentUser();
+
+  try {
+    const { enabled } = budgetModeToggleSchema.parse({
+      enabled: stringValue(formData, 'enabled'),
+    });
+    await setBudgetModeForUser(user.id, enabled);
+
+    revalidatePath('/app');
+    revalidatePath('/app/budgets');
+
+    return {
+      status: 'success',
+      message: enabled ? 'Budget mode is now on.' : 'Budget mode is now off.',
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function upsertCurrentBudgetConfigurationAction(
+  _previousState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireCurrentUser();
+
+  try {
+    await upsertCurrentBudgetConfigurationForUser(
+      user.id,
+      budgetConfigurationFormValues(formData),
+    );
+
+    revalidatePath('/app');
+    revalidatePath('/app/budgets');
+
+    return {
+      status: 'success',
+      message: 'Budget saved for the current month.',
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
 export async function createCategoryAction(
   _previousState: ActionResult | null,
   formData: FormData,
@@ -211,6 +268,13 @@ function transactionFormValues(formData: FormData) {
   };
 }
 
+function budgetConfigurationFormValues(formData: FormData) {
+  return {
+    amount: stringValue(formData, 'amount'),
+    categoryId: stringValue(formData, 'categoryId'),
+    mode: stringValue(formData, 'mode'),
+  };
+}
 function toActionError(error: unknown): ActionResult {
   if (error instanceof z.ZodError) {
     return {
@@ -221,6 +285,7 @@ function toActionError(error: unknown): ActionResult {
 
   if (
     error instanceof ArchivedCategoryError ||
+    error instanceof BudgetCategoryUnavailableError ||
     error instanceof CategoryNameConflictError ||
     error instanceof OwnedRecordNotFoundError
   ) {

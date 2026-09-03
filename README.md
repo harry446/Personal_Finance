@@ -1,6 +1,6 @@
 # Personal Finance
 
-A private personal-finance spending tracker for expenses, refunds, reviewed document imports, and monthly insight. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 through M5.
+A private personal-finance spending tracker for expenses, refunds, reviewed document imports, monthly insight, and optional category budgets. The implementation follows the milestone plan in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); this repository currently contains M0 through M6.
 
 ## Technology
 
@@ -9,7 +9,7 @@ A private personal-finance spending tracker for expenses, refunds, reviewed docu
 - Vitest + Testing Library for units, Playwright for browser smoke tests
 - GitHub Actions quality gate with a PostgreSQL service
 
-M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. M3 adds the user-scoped monthly dashboard: validated month selection, gross expenses, refunds, net spending, category net totals, daily trend, and recent ledger activity. M4 adds durable, user-scoped import batches and candidate review: editable candidates, select/exclude states, atomic approval into the ledger, and durable history. M5 adds temporary in-memory PDF/image extraction through the OpenAI Responses API, mandatory human review, encrypted short-retention raw output, and a purge trigger; budgets remain deferred to M6.
+M1 provides Google OAuth, user bootstrap, default categories, and user-isolation guardrails. M2 adds the owned manual transaction ledger and archive-safe category management. M3 adds the user-scoped monthly dashboard: validated month selection, gross expenses, refunds, net spending, category net totals, daily trend, and recent ledger activity. M4 adds durable, user-scoped import batches and candidate review: editable candidates, select/exclude states, atomic approval into the ledger, and durable history. M5 adds temporary in-memory PDF/image extraction through the OpenAI Responses API, mandatory human review, encrypted short-retention raw output, and a purge trigger. M6 adds opt-in category budget mode, immutable month-effective configuration history, and monthly reset or rollover progress with refunds applied in their transaction month.
 
 ## Prerequisites
 
