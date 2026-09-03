@@ -15,6 +15,7 @@ describe('budgets workspace', () => {
         budgetModeEnabled={false}
         categories={[]}
         currentMonth="2026-09"
+        progress={[]}
       />,
     );
 

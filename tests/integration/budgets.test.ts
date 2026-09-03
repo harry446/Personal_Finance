@@ -158,6 +158,31 @@ describe('M6 budget mode and configuration history', () => {
       },
       asOf('2026-03-01'),
     );
+
+    const configuredSetup = await getBudgetSetupForUser(
+      owner.id,
+      asOf('2026-03-02'),
+    );
+    expect(
+      configuredSetup.categories.find(
+        (category) => category.categoryId === ownerGroceries.id,
+      ),
+    ).toMatchObject({
+      configuration: {
+        amountCents: 30_000,
+        effectiveMonth: '2026-03',
+        mode: 'rollover',
+      },
+    });
+    expect(configuredSetup.progress).toEqual([
+      expect.objectContaining({
+        availableCents: 30_000,
+        categoryId: ownerGroceries.id,
+        configuredLimitCents: 30_000,
+        usageCents: 0,
+      }),
+    ]);
+
     await archiveCategoryForUser(owner.id, ownerGroceries.id);
 
     await expect(

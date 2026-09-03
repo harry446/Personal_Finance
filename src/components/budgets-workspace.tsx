@@ -27,12 +27,12 @@ export function BudgetsWorkspace({
   budgetModeEnabled,
   categories,
   currentMonth,
-  progress = [],
+  progress,
 }: {
   budgetModeEnabled: boolean;
   categories: BudgetCategory[];
   currentMonth: string;
-  progress?: BudgetProgressData[];
+  progress: BudgetProgressData[];
 }) {
   const [editor, setEditor] = useState<BudgetCategory | null>(null);
   const progressByCategoryId = new Map(
@@ -97,17 +97,12 @@ export function BudgetsWorkspace({
                     className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
                     key={category.categoryId}
                   >
-                    <div>
-                      <p className="text-sm font-semibold">{category.name}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-semibold leading-6">
+                        {category.name}
+                      </p>
                       {category.configuration ? (
                         <>
-                          <p className="mt-1 text-sm text-[var(--pf-text-secondary)]">
-                            {formatCad(category.configuration.amountCents)} each
-                            month ·{' '}
-                            {formatBudgetMode(category.configuration.mode)} ·
-                            effective{' '}
-                            {formatMonth(category.configuration.effectiveMonth)}
-                          </p>
                           <BudgetMeter
                             categoryName={category.name}
                             progress={categoryProgress}
@@ -162,10 +157,14 @@ function BudgetMeter({
   progress,
 }: {
   categoryName: string;
-  progress?: BudgetProgressData;
+  progress: BudgetProgressData | undefined;
 }) {
   if (!progress) {
-    return null;
+    return (
+      <p className="mt-3 text-sm text-[var(--pf-text-secondary)]">
+        Current-month progress is unavailable. Refresh the page to try again.
+      </p>
+    );
   }
 
   const isOverBudget = progress.overageCents > 0;
@@ -182,7 +181,7 @@ function BudgetMeter({
       : Math.max(progress.configuredLimitCents, 1);
 
   return (
-    <div className="mt-5 border-t border-[var(--pf-border-default)] pt-5">
+    <div className="mt-4 rounded-xl bg-[#f4f8f6] p-4 sm:p-5">
       <div className="grid grid-cols-3 gap-3">
         <BudgetStat label="Spent" value={formatCad(progress.usageCents)} />
         <BudgetStat
@@ -218,7 +217,7 @@ function BudgetMeter({
       <p className="mt-3 text-xs leading-4 text-[var(--pf-text-secondary)]">
         {progress.mode === 'rollover' && progress.rolloverWindowStartMonth
           ? `Rollover available since ${formatMonth(progress.rolloverWindowStartMonth)}.`
-          : `Resets each month. Effective ${formatMonth(progress.configurationEffectiveMonth)}.`}
+          : `Monthly reset · effective ${formatMonth(progress.configurationEffectiveMonth)}.`}
       </p>
     </div>
   );
@@ -433,10 +432,6 @@ function ActionMessage({ state }: { state: ActionState }) {
 
 const fieldClassName =
   'h-11 rounded-lg border border-[var(--pf-border-default)] bg-[var(--pf-bg-surface)] px-3 text-sm font-normal text-[var(--pf-text-primary)] outline-none transition-colors placeholder:text-[#9aa7a9] focus:border-[var(--pf-action-primary)]';
-
-function formatBudgetMode(mode: BudgetMode) {
-  return mode === 'rollover' ? 'Rollover' : 'Monthly reset';
-}
 
 function formatMonth(value: string) {
   return new Intl.DateTimeFormat('en-CA', {

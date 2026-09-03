@@ -29,6 +29,7 @@ export class BudgetCategoryUnavailableError extends Error {
 export type BudgetSetup = {
   budgetModeEnabled: boolean;
   currentMonth: string;
+  progress: BudgetDashboard['progress'];
   categories: Array<{
     categoryId: string;
     configuration: {
@@ -118,6 +119,7 @@ export async function getBudgetSetupForUser(
         name: true,
         budgets: {
           select: {
+            id: true,
             configurations: {
               where: { effectiveMonth: { lt: currentMonth.endExclusive } },
               select: {
@@ -133,9 +135,51 @@ export async function getBudgetSetupForUser(
     }),
   ]);
 
+  const budgetModeEnabled = user?.budgetModeEnabled ?? false;
+  const budgetCategories = categories.flatMap((category) =>
+    category.budgets.map((budget) => ({
+      budgetId: budget.id,
+      categoryId: category.id,
+      categoryName: category.name,
+      configurations: budget.configurations.map(toCalculationConfiguration),
+    })),
+  );
+  const categoryIds = budgetCategories.map((budget) => budget.categoryId);
+  const transactions =
+    budgetModeEnabled && categoryIds.length > 0
+      ? await db.transaction.findMany({
+          where: {
+            categoryId: { in: categoryIds },
+            transactionDate: { lt: currentMonth.endExclusive },
+            userId,
+          },
+          select: {
+            amountCents: true,
+            categoryId: true,
+            transactionDate: true,
+            type: true,
+          },
+        })
+      : [];
+
   return {
-    budgetModeEnabled: user?.budgetModeEnabled ?? false,
+    budgetModeEnabled,
     currentMonth: currentMonth.key,
+    progress: budgetModeEnabled
+      ? buildBudgetProgress(
+          currentMonth,
+          budgetCategories,
+          transactions.map((transaction) => ({
+            amountCents: transaction.amountCents,
+            categoryId: transaction.categoryId,
+            transactionDate: transaction.transactionDate,
+            type:
+              transaction.type === TransactionType.EXPENSE
+                ? 'expense'
+                : 'refund',
+          })),
+        )
+      : [],
     categories: categories.map((category) => {
       const configurations =
         category.budgets[0]?.configurations.map(toCalculationConfiguration) ??
