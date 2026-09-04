@@ -74,8 +74,8 @@ export function DashboardWorkspace({
 
       <BudgetProgress
         budget={dashboard.budget}
+        categoryTotals={dashboard.categoryTotals}
         monthLabel={monthLabel}
-        monthlySpendingCents={dashboard.netSpendingCents}
       />
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
@@ -149,8 +149,8 @@ export function DashboardEmptyState({
       </section>
       <BudgetProgress
         budget={budget}
+        categoryTotals={[]}
         monthLabel={monthLabel}
-        monthlySpendingCents={0}
       />
     </div>
   );

@@ -41,6 +41,15 @@ export type BudgetDashboard = {
   progress: BudgetProgress[];
 };
 
+export type BudgetProgressSummary = {
+  availableCents: number;
+  budgetedSpendingCents: number;
+  configuredLimitCents: number;
+  effectiveBudgetCents: number;
+  overageCents: number;
+  rolloverCapacityAdjustmentCents: number;
+};
+
 type BudgetForCalculation = {
   budgetId: string;
   categoryId: string;
@@ -72,6 +81,50 @@ export function buildBudgetProgress(
     .map((budget) => buildProgressForBudget(month, budget, transactions))
     .filter((progress): progress is BudgetProgress => progress !== null)
     .sort((left, right) => left.categoryName.localeCompare(right.categoryName));
+}
+
+/**
+ * Collapses independently calculated category budgets for the dashboard.
+ *
+ * Availability and overage remain category-based: an overage in one category
+ * never consumes another category's available balance. The effective budget
+ * capacity therefore includes rollover balances (or rollover deficits) while
+ * using each category's own accounting rules.
+ */
+export function summarizeBudgetProgress(
+  progress: readonly BudgetProgress[],
+): BudgetProgressSummary {
+  const summary = progress.reduce(
+    (totals, budget) => {
+      const categoryCapacityCents = Math.max(
+        0,
+        budget.usageCents + budget.availableCents - budget.overageCents,
+      );
+
+      return {
+        availableCents: totals.availableCents + budget.availableCents,
+        budgetedSpendingCents: totals.budgetedSpendingCents + budget.usageCents,
+        configuredLimitCents:
+          totals.configuredLimitCents + budget.configuredLimitCents,
+        effectiveBudgetCents:
+          totals.effectiveBudgetCents + categoryCapacityCents,
+        overageCents: totals.overageCents + budget.overageCents,
+      };
+    },
+    {
+      availableCents: 0,
+      budgetedSpendingCents: 0,
+      configuredLimitCents: 0,
+      effectiveBudgetCents: 0,
+      overageCents: 0,
+    },
+  );
+
+  return {
+    ...summary,
+    rolloverCapacityAdjustmentCents:
+      summary.effectiveBudgetCents - summary.configuredLimitCents,
+  };
 }
 
 function buildProgressForBudget(

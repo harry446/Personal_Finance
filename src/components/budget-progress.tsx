@@ -1,30 +1,44 @@
 import Link from 'next/link';
 
-import type { BudgetDashboard } from '@/lib/budget-calculations';
+import {
+  summarizeBudgetProgress,
+  type BudgetDashboard,
+} from '@/lib/budget-calculations';
 import { formatCad } from '@/lib/formatters';
 
 export function BudgetProgress({
   budget,
+  categoryTotals = [],
   monthLabel,
-  monthlySpendingCents,
 }: {
   budget?: BudgetDashboard;
+  categoryTotals?: Array<{ categoryId: string; netCents: number }>;
   monthLabel: string;
-  monthlySpendingCents?: number;
 }) {
   if (!budget?.enabled) {
     return null;
   }
 
-  const totalBudgetCents = budget.progress.reduce(
-    (total, progress) => total + progress.configuredLimitCents,
+  const summary = summarizeBudgetProgress(budget.progress);
+  const budgetedCategoryIds = new Set(
+    budget.progress.map((progress) => progress.categoryId),
+  );
+  const unbudgetedNetSpendingCents = categoryTotals.reduce(
+    (total, category) =>
+      budgetedCategoryIds.has(category.categoryId)
+        ? total
+        : total + category.netCents,
     0,
   );
-  const totalSpentCents =
-    monthlySpendingCents ??
-    budget.progress.reduce((total, progress) => total + progress.usageCents, 0);
-  const remainingCents = totalBudgetCents - totalSpentCents;
-  const progressPercent = percentage(totalSpentCents, totalBudgetCents);
+  const barLimitCents = Math.max(
+    summary.effectiveBudgetCents,
+    summary.budgetedSpendingCents,
+    1,
+  );
+  const progressPercent = percentage(
+    summary.budgetedSpendingCents,
+    barLimitCents,
+  );
 
   return (
     <section aria-label="Budget progress" className="mt-8">
@@ -55,29 +69,32 @@ export function BudgetProgress({
         ) : (
           <>
             <div className="mt-6 grid grid-cols-3 gap-4 border-y border-[var(--pf-border-default)] py-5">
-              <SummaryValue label="Spent" value={formatCad(totalSpentCents)} />
               <SummaryValue
-                label={remainingCents < 0 ? 'Over by' : 'Left to spend'}
-                tone={remainingCents < 0 ? 'expense' : 'action'}
-                value={formatCad(Math.abs(remainingCents))}
+                label="Budgeted spent"
+                value={formatCad(summary.budgetedSpendingCents)}
               />
               <SummaryValue
-                label="Budget"
-                value={formatCad(totalBudgetCents)}
+                label="Available"
+                tone="action"
+                value={formatCad(summary.availableCents)}
+              />
+              <SummaryValue
+                label="Budget capacity"
+                value={formatCad(summary.effectiveBudgetCents)}
               />
             </div>
             <div
-              aria-label={`${formatCad(totalSpentCents)} spent of ${formatCad(totalBudgetCents)} monthly budget`}
-              aria-valuemax={Math.max(totalBudgetCents, 0)}
+              aria-label={`${formatCad(summary.budgetedSpendingCents)} budgeted spending of ${formatCad(summary.effectiveBudgetCents)} budget capacity`}
+              aria-valuemax={barLimitCents}
               aria-valuemin={0}
-              aria-valuenow={Math.max(0, totalSpentCents)}
+              aria-valuenow={Math.max(0, summary.budgetedSpendingCents)}
               className="mt-5 h-3 overflow-hidden rounded-full bg-[#dbe9e5]"
               role="progressbar"
             >
               <span
                 className={
                   'block h-full rounded-full transition-[width] ' +
-                  (remainingCents < 0
+                  (summary.overageCents > 0
                     ? 'bg-[var(--pf-status-expense)]'
                     : 'bg-[var(--pf-action-primary)]')
                 }
@@ -86,8 +103,20 @@ export function BudgetProgress({
             </div>
             <p className="mt-3 text-xs leading-4 text-[var(--pf-text-secondary)]">
               {budget.progress.length} category budget
-              {budget.progress.length === 1 ? '' : 's'} configured. Refunds
-              reduce spending in the month they occur.
+              {budget.progress.length === 1 ? '' : 's'} configured.
+              {summary.rolloverCapacityAdjustmentCents > 0
+                ? ` ${formatCad(summary.rolloverCapacityAdjustmentCents)} is carried forward through rollover.`
+                : summary.rolloverCapacityAdjustmentCents < 0
+                  ? ` A prior rollover overage reduces capacity by ${formatCad(Math.abs(summary.rolloverCapacityAdjustmentCents))}.`
+                  : ''}
+              {summary.overageCents > 0
+                ? ` ${formatCad(summary.overageCents)} is over budget across its category.`
+                : ''}
+              {unbudgetedNetSpendingCents > 0
+                ? ` ${formatCad(unbudgetedNetSpendingCents)} of unbudgeted spending is excluded from this progress.`
+                : unbudgetedNetSpendingCents < 0
+                  ? ` ${formatCad(Math.abs(unbudgetedNetSpendingCents))} in unbudgeted refunds is excluded from this progress.`
+                  : ' Refunds reduce budgeted spending in the month they occur.'}
             </p>
           </>
         )}
