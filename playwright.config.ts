@@ -13,6 +13,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
+  workers: 1,
   use: {
     baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
@@ -24,7 +25,7 @@ export default defineConfig({
     },
     {
       name: 'authenticated',
-      testMatch: /[\\/]authenticated\.spec\.ts$/,
+      testMatch: /[\\/](?:authenticated|m7-release)\.spec\.ts$/,
       use: { storageState: authStatePath },
     },
   ],

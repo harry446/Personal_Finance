@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { purgeExpiredExtractionCiphertext } from '@/lib/import-retention';
+import { logOperationalEvent } from '@/lib/observability';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,7 +16,10 @@ export async function POST(request: Request) {
 
   const deleted = await purgeExpiredExtractionCiphertext();
 
-  console.info('extraction_retention_purged', { deleted });
+  logOperationalEvent('extraction_retention_purged', {
+    deleted,
+    outcome: 'completed',
+  });
 
   return Response.json({ deleted });
 }

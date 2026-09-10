@@ -1,6 +1,10 @@
 import 'server-only';
 
-import { createHash } from 'node:crypto';
+import {
+  hashOperationalIdentifier,
+  logOperationalEvent,
+  redactOperationalFields,
+} from '@/lib/observability';
 
 type ImportLogEvent = {
   durationMs?: number;
@@ -11,18 +15,15 @@ type ImportLogEvent = {
 };
 
 export function redactImportLogEvent(event: ImportLogEvent) {
-  return {
+  return redactOperationalFields({
     durationMs: event.durationMs,
     event: event.event,
     providerRequestId: event.providerRequestId ?? undefined,
     status: event.status,
-    userHash: createHash('sha256')
-      .update(event.userId)
-      .digest('hex')
-      .slice(0, 16),
-  };
+    userHash: hashOperationalIdentifier(event.userId),
+  });
 }
 
 export function logImportEvent(event: ImportLogEvent) {
-  console.info('import_event', redactImportLogEvent(event));
+  logOperationalEvent('import_event', redactImportLogEvent(event));
 }

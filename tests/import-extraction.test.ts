@@ -127,16 +127,7 @@ describe('M5 OpenAI extraction boundary', () => {
     expect(JSON.stringify(request.text.format)).toContain('Coffee and snacks');
     expect(JSON.stringify(request.text.format)).toContain('Restaurants');
     expect(JSON.stringify(request)).not.toContain('file_id');
-    expect(consoleInfo).toHaveBeenCalledWith(
-      'openai_import_extraction_prompt',
-      {
-        prompt: request.instructions,
-      },
-    );
-    expect(consoleInfo).toHaveBeenCalledWith(
-      'openai_import_extraction_raw_response',
-      { rawResponse: JSON.stringify(output) },
-    );
+    expect(consoleInfo).not.toHaveBeenCalled();
   });
 
   it.each([

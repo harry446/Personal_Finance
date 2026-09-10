@@ -1,0 +1,6 @@
+[Unit]
+Description=Personal Finance local health check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl --fail --silent --show-error http://127.0.0.1:3000/api/health

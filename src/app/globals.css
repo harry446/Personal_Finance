@@ -5,13 +5,14 @@
   --background: #f6f7f4;
   --foreground: #0e1317;
   --pf-action-primary: #056e61;
+  --pf-action-on-primary: #ffffff;
   --pf-bg-canvas: #f6f7f4;
   --pf-bg-surface: #fffffb;
   --pf-border-default: #ebf0ed;
   --pf-status-expense: #c24033;
   --pf-status-refund: #056e61;
   --pf-text-primary: #0e1317;
-  --pf-text-secondary: #66757a;
+  --pf-text-secondary: #5f6e73;
 }
 
 * {

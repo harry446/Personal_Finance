@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { SignInButton } from '@/components/sign-in-button';
 
 export function SignInScreen() {
@@ -19,7 +21,13 @@ export function SignInScreen() {
         </div>
         <p className="mt-5 text-sm leading-6 text-slate-500">
           We use Google only to sign you in. Your spending data is isolated to
-          your account.
+          your account.{' '}
+          <Link
+            className="font-semibold text-emerald-700 underline"
+            href="/privacy"
+          >
+            Read the privacy notice.
+          </Link>
         </p>
       </div>
     </main>

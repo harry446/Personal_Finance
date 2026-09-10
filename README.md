@@ -96,7 +96,7 @@ Prisma uses PostgreSQL exclusively. `prisma.config.ts` reads `DATABASE_URL`, `pr
 
 `.env` files are ignored. `.env.example` contains names only—never commit a real database URL, OAuth credential, OpenAI key, encryption key, session secret, or production URL.
 
-The production deployment is one Next.js service plus one managed PostgreSQL database. Apply migrations before serving new application code, use TLS and a secret manager, and verify backup/restore procedures before release.
+The production deployment target is one DigitalOcean Droplet running the Next.js service and self-hosted PostgreSQL. Caddy terminates TLS and is the only public entry point; the application and database bind to localhost. Apply migrations before serving new application code, keep the root-owned service secret file out of the repository, enable weekly Droplet backups, and verify a restore procedure before release. See docs/M7_OPERATIONS_RUNBOOK.md and docs/M7_RELEASE_CHECKLIST.md.
 
 ## Temporary OpenAI extraction (M5)
 
@@ -113,3 +113,7 @@ The application stores encrypted raw Responses output for 30 days only. Configur
 The chosen host must support the request-body size and synchronous execution duration required by the files a user submits. These are operational platform constraints, not a product file-size limit. Before enabling this feature for anyone beyond the owner, publish a privacy notice that explains that selected uploads are sent to OpenAI for extraction. `store: false` prevents intentional Responses state retention, but OpenAI's published data controls describe exceptional image/file abuse-monitoring retention.
 
 TODO: Experience with 5.6 Luna or 5.4 mini (maybe 5.4 mini gives better performance)?
+
+## Release hardening (M7)
+
+M7 adds an authorization matrix, safe operational logging, bounded sign-in/import rate limits for the single-Droplet deployment, a database-backed health endpoint, production response headers, and a public privacy notice at /privacy. The exact DigitalOcean deployment, monitoring, backup/restore, and two-account release steps are documented in docs/M7_OPERATIONS_RUNBOOK.md and docs/M7_RELEASE_CHECKLIST.md.

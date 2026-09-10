@@ -67,6 +67,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-6 border-t border-[var(--pf-border-default)] pt-3 md:mt-auto">
           <SignOutButton />
+          <Link
+            className="mt-4 inline-block text-xs text-[var(--pf-text-secondary)] underline hover:text-[var(--pf-text-primary)]"
+            href="/privacy"
+          >
+            Privacy notice
+          </Link>
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-6 py-8 sm:px-10 md:px-12 md:py-11">

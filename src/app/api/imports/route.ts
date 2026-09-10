@@ -10,6 +10,11 @@ import {
   releaseImportUploads,
 } from '@/lib/import-upload';
 import { purgeExpiredExtractionCiphertext } from '@/lib/import-retention';
+import {
+  enforceRequestRateLimit,
+  enforceUserRateLimit,
+  rateLimitedResponse,
+} from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +27,12 @@ export async function POST(request: Request) {
     );
   }
 
+  const ipRateLimit = enforceRequestRateLimit(request, 'import_ip');
+
+  if (!ipRateLimit.allowed) {
+    return rateLimitedResponse(ipRateLimit.retryAfterSeconds);
+  }
+
   const userId = getSessionUserId(await auth());
 
   if (!userId) {
@@ -29,6 +40,12 @@ export async function POST(request: Request) {
       { error: 'Sign in to import transactions.' },
       { status: 401 },
     );
+  }
+
+  const userRateLimit = enforceUserRateLimit(userId, 'import_user');
+
+  if (!userRateLimit.allowed) {
+    return rateLimitedResponse(userRateLimit.retryAfterSeconds);
   }
 
   let uploads: ImportUpload[] = [];

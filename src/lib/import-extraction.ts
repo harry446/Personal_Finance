@@ -153,8 +153,6 @@ export function createOpenAiImportExtractionProvider(options?: {
     async extract(uploads, context) {
       const prompt = buildExtractionInstructions(context);
 
-      console.info('openai_import_extraction_prompt', { prompt });
-
       const response = await client.responses.parse({
         input: [
           {
@@ -181,10 +179,6 @@ export function createOpenAiImportExtractionProvider(options?: {
             },
           ),
         },
-      });
-
-      console.info('openai_import_extraction_raw_response', {
-        rawResponse: response.output_text,
       });
 
       return {

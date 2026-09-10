@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Client } from 'pg';
 
 const authStatePath = path.resolve('e2e/.auth/seeded-user.json');
+const secondAuthStatePath = path.resolve('e2e/.auth/second-user.json');
 
 export default async function globalSetup() {
   const connectionString = process.env.DATABASE_URL;
@@ -16,9 +17,13 @@ export default async function globalSetup() {
   }
 
   const userId = randomUUID();
+  const secondUserId = randomUUID();
   const email = `playwright-m3-${randomUUID()}@example.test`;
+  const secondEmail = 'playwright-m7-' + randomUUID() + '@example.test';
   const sessionToken = randomUUID();
+  const secondSessionToken = randomUUID();
   const groceriesId = randomUUID();
+  const secondGroceriesId = randomUUID();
   const restaurantsId = randomUUID();
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const importBatchId = randomUUID();
@@ -92,6 +97,18 @@ export default async function globalSetup() {
     'INSERT INTO "sessions" ("session_token", "user_id", "expires") VALUES ($1, $2, $3)',
     [sessionToken, userId, expires],
   );
+  await client.query(
+    'INSERT INTO "users" ("id", "email", "updated_at") VALUES ($1, $2, CURRENT_TIMESTAMP)',
+    [secondUserId, secondEmail],
+  );
+  await client.query(
+    'INSERT INTO "categories" ("id", "user_id", "name", "normalized_name", "updated_at") VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)',
+    [secondGroceriesId, secondUserId, 'Groceries', 'groceries'],
+  );
+  await client.query(
+    'INSERT INTO "sessions" ("session_token", "user_id", "expires") VALUES ($1, $2, $3)',
+    [secondSessionToken, secondUserId, expires],
+  );
   await client.end();
 
   await mkdir(path.dirname(authStatePath), { recursive: true });
@@ -113,15 +130,38 @@ export default async function globalSetup() {
       origins: [],
     }),
   );
+  await writeFile(
+    secondAuthStatePath,
+    JSON.stringify({
+      cookies: [
+        {
+          domain: 'localhost',
+          expires: Math.floor(expires.getTime() / 1000),
+          httpOnly: true,
+          name: 'next-auth.session-token',
+          path: '/',
+          sameSite: 'Lax',
+          secure: false,
+          value: secondSessionToken,
+        },
+      ],
+      origins: [],
+    }),
+  );
 
   return async () => {
     const cleanupClient = new Client({ connectionString });
 
     await cleanupClient.connect();
     await cleanupClient
-      .query('DELETE FROM "users" WHERE "id" = $1', [userId])
+      .query('DELETE FROM "users" WHERE "id" = ANY($1::uuid[])', [
+        [userId, secondUserId],
+      ])
       .catch(() => undefined);
     await cleanupClient.end();
-    await rm(authStatePath, { force: true });
+    await Promise.all([
+      rm(authStatePath, { force: true }),
+      rm(secondAuthStatePath, { force: true }),
+    ]);
   };
 }
