@@ -5,11 +5,15 @@ import { enforceRequestRateLimit, rateLimitedResponse } from '@/lib/rate-limit';
 
 const handler = NextAuth(authOptions);
 
-export function GET(request: Request) {
-  return handler(request);
+type AuthRouteContext = {
+  params: Promise<{ nextauth: string[] }>;
+};
+
+export function GET(request: Request, context: AuthRouteContext) {
+  return handler(request, context);
 }
 
-export function POST(request: Request) {
+export function POST(request: Request, context: AuthRouteContext) {
   if (new URL(request.url).pathname.endsWith('/signin/google')) {
     const rateLimit = enforceRequestRateLimit(request, 'sign_in');
 
@@ -18,5 +22,5 @@ export function POST(request: Request) {
     }
   }
 
-  return handler(request);
+  return handler(request, context);
 }

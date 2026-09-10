@@ -22,7 +22,11 @@ vi.mock('@/lib/rate-limit', () => ({
     ),
 }));
 
-import { POST } from '@/app/api/auth/[...nextauth]/route';
+import { GET, POST } from '@/app/api/auth/[...nextauth]/route';
+
+const authRouteContext = {
+  params: Promise.resolve({ nextauth: ['callback', 'google'] }),
+};
 
 describe('Google sign-in rate limiting', () => {
   beforeEach(() => {
@@ -39,6 +43,7 @@ describe('Google sign-in rate limiting', () => {
       new Request('https://finance.example/api/auth/signin/google', {
         method: 'POST',
       }),
+      authRouteContext,
     );
 
     expect(response.status).toBe(429);
@@ -54,8 +59,19 @@ describe('Google sign-in rate limiting', () => {
       },
     );
 
-    await expect(POST(request)).resolves.toMatchObject({ status: 200 });
+    await expect(POST(request, authRouteContext)).resolves.toMatchObject({
+      status: 200,
+    });
     expect(rateLimitMock).not.toHaveBeenCalled();
-    expect(handlerMock).toHaveBeenCalledWith(request);
+    expect(handlerMock).toHaveBeenCalledWith(request, authRouteContext);
+  });
+
+  it('forwards dynamic Auth.js route parameters on GET requests', async () => {
+    const request = new Request('https://finance.example/api/auth/providers');
+
+    await expect(GET(request, authRouteContext)).resolves.toMatchObject({
+      status: 200,
+    });
+    expect(handlerMock).toHaveBeenCalledWith(request, authRouteContext);
   });
 });
