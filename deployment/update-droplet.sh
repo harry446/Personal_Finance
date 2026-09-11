@@ -106,7 +106,7 @@ log "Fast-forwarding $old_revision to $target_revision"
 run_as_app git -C "$APP_DIR" merge --ff-only "$REMOTE/$BRANCH"
 
 log "Installing locked dependencies"
-run_with_secrets dependencies /usr/bin/npm ci
+run_with_secrets dependencies /usr/bin/npm ci --include=dev
 
 log "Applying committed database migrations"
 run_with_secrets migrations /usr/bin/npm run prisma:deploy

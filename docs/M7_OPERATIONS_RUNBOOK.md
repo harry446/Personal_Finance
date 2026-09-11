@@ -28,7 +28,7 @@ On this single Droplet, use a root-owned systemd EnvironmentFile as the release 
 
 1. Run the repository quality gates and confirm CI is green.
 2. Confirm the release commit is pushed to `origin/main`. The Droplet can only deploy committed and pushed work.
-3. SSH into the Droplet as root and run `bash /srv/personal-finance/deployment/update-droplet.sh`. The script refuses a dirty or diverged checkout, fast-forwards from `origin/main`, stops the application, runs `npm ci`, applies committed migrations, builds, refreshes the systemd units, starts the application, and checks the local health endpoint. Never use `prisma db push` in production.
+3. SSH into the Droplet as root and run `bash /srv/personal-finance/deployment/update-droplet.sh`. The script refuses a dirty or diverged checkout, fast-forwards from `origin/main`, stops the application, runs `npm ci --include=dev` so Next.js build tooling is available, applies committed migrations, builds, refreshes the systemd units, starts the application, and checks the local health endpoint. Never use `prisma db push` in production.
 4. On the first deployment after this script is added, fetch it before running it:
 
    ```bash
