@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 
 APP_DIR="/srv/personal-finance"
+APP_HOME="/var/lib/personal-finance"
 APP_USER="personal-finance"
 APP_GROUP="personal-finance"
 BRANCH="main"
@@ -39,7 +40,7 @@ on_error() {
 trap on_error ERR
 
 run_as_app() {
-  runuser --user "$APP_USER" -- "$@"
+  runuser --user "$APP_USER" -- /usr/bin/env HOME="$APP_HOME" "$@"
 }
 
 run_with_secrets() {
@@ -56,6 +57,8 @@ run_with_secrets() {
     --property="Group=$APP_GROUP" \
     --property="WorkingDirectory=$APP_DIR" \
     --property="EnvironmentFile=$ENV_FILE" \
+    --property="Environment=HOME=$APP_HOME" \
+    --property="Environment=NPM_CONFIG_CACHE=$APP_HOME/.npm" \
     --property="Environment=NODE_ENV=production" \
     --property="Environment=NEXT_TELEMETRY_DISABLED=1" \
     "$@"
@@ -70,14 +73,18 @@ for command in git runuser systemctl systemd-run curl install id sleep; do
 done
 
 [[ -x /usr/bin/npm ]] || fail "Required executable is missing: /usr/bin/npm"
+[[ -x /usr/bin/env ]] || fail "Required executable is missing: /usr/bin/env"
 [[ -d "$APP_DIR/.git" ]] || fail "Git checkout not found at $APP_DIR"
 [[ -f "$ENV_FILE" ]] || fail "Environment file not found at $ENV_FILE"
 id "$APP_USER" >/dev/null 2>&1 || fail "Deployment user does not exist: $APP_USER"
+install -d -o "$APP_USER" -g "$APP_GROUP" -m 0750 "$APP_HOME"
 
 current_branch="$(run_as_app git -C "$APP_DIR" branch --show-current)"
 [[ "$current_branch" == "$BRANCH" ]] || fail "Expected branch $BRANCH, found ${current_branch:-detached HEAD}"
 
-if [[ -n "$(run_as_app git -C "$APP_DIR" status --porcelain)" ]]; then
+dirty_status="$(run_as_app git -C "$APP_DIR" status --porcelain)"
+if [[ -n "$dirty_status" ]]; then
+  printf '%s\n' "$dirty_status" >&2
   fail "The Droplet checkout has uncommitted changes. Resolve them before deploying."
 fi
 

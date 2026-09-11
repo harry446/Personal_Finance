@@ -37,10 +37,11 @@ On this single Droplet, use a root-owned systemd EnvironmentFile as the release 
    ```
 
    For later updates, only the second command is needed because the script performs its own fetch and fast-forward.
-5. If the script fails after stopping the service, it intentionally leaves the service stopped instead of serving a partially updated release. Read the reported error and inspect `journalctl -u personal-finance.service -n 100 --no-pager`. Database migrations are not automatically reversible; confirm migration compatibility before manually rolling application code back.
-6. On a 1 GiB Droplet, build in CI or add temporary build capacity if the production build approaches the memory limit.
-7. Confirm the public HTTPS health endpoint returns status ok.
-8. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
+5. The script uses `/var/lib/personal-finance` as the deployment user's home and npm cache location. Keep shell history, npm caches, and other service-account state outside `/srv/personal-finance`; otherwise the clean-checkout safety check will stop the release.
+6. If the script fails after stopping the service, it intentionally leaves the service stopped instead of serving a partially updated release. Read the reported error and inspect `journalctl -u personal-finance.service -n 100 --no-pager`. Database migrations are not automatically reversible; confirm migration compatibility before manually rolling application code back.
+7. On a 1 GiB Droplet, build in CI or add temporary build capacity if the production build approaches the memory limit.
+8. Confirm the public HTTPS health endpoint returns status ok.
+9. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
 
 ## Backup and restore
 
