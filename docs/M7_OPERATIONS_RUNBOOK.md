@@ -27,12 +27,20 @@ On this single Droplet, use a root-owned systemd EnvironmentFile as the release 
 ## Release procedure
 
 1. Run the repository quality gates and confirm CI is green.
-2. Update the checked-out release at /srv/personal-finance as the deployment user. Install the lockfile dependencies with npm ci and generate Prisma Client.
-3. Run npm run prisma:deploy before starting new application code. Never use prisma db push in production.
-4. Run npm run build. On a 1 GiB Droplet, build in CI or add temporary build capacity rather than allowing the production process to be killed by memory pressure.
-5. Copy deployment/personal-finance.service to /etc/systemd/system, reload systemd, then restart personal-finance.
-6. Copy and enable the healthcheck service and timer. Confirm both the local health endpoint and the public HTTPS health endpoint return status ok.
-7. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
+2. Confirm the release commit is pushed to `origin/main`. The Droplet can only deploy committed and pushed work.
+3. SSH into the Droplet as root and run `bash /srv/personal-finance/deployment/update-droplet.sh`. The script refuses a dirty or diverged checkout, fast-forwards from `origin/main`, stops the application, runs `npm ci`, applies committed migrations, builds, refreshes the systemd units, starts the application, and checks the local health endpoint. Never use `prisma db push` in production.
+4. On the first deployment after this script is added, fetch it before running it:
+
+   ```bash
+   runuser --user personal-finance -- git -C /srv/personal-finance pull --ff-only origin main
+   bash /srv/personal-finance/deployment/update-droplet.sh
+   ```
+
+   For later updates, only the second command is needed because the script performs its own fetch and fast-forward.
+5. If the script fails after stopping the service, it intentionally leaves the service stopped instead of serving a partially updated release. Read the reported error and inspect `journalctl -u personal-finance.service -n 100 --no-pager`. Database migrations are not automatically reversible; confirm migration compatibility before manually rolling application code back.
+6. On a 1 GiB Droplet, build in CI or add temporary build capacity if the production build approaches the memory limit.
+7. Confirm the public HTTPS health endpoint returns status ok.
+8. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
 
 ## Backup and restore
 
