@@ -33,9 +33,14 @@ describe('current user guard', () => {
   });
 
   it('returns the authenticated user id', async () => {
-    authMock.mockResolvedValue({ user: { id: 'user-1' } });
+    authMock.mockResolvedValue({
+      user: { email: 'owner@example.test', id: 'user-1' },
+    });
 
-    await expect(requireCurrentUser()).resolves.toEqual({ id: 'user-1' });
+    await expect(requireCurrentUser()).resolves.toEqual({
+      email: 'owner@example.test',
+      id: 'user-1',
+    });
     expect(redirectMock).not.toHaveBeenCalled();
   });
 

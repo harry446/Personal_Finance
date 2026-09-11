@@ -6,7 +6,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/components/sign-out-button', () => ({
-  SignOutButton: () => <button type="button">Sign out</button>,
+  SignOutButton: () => (
+    <button type="button">Sign out or switch account</button>
+  ),
 }));
 
 import { AppShell } from '@/components/app-shell';
@@ -14,7 +16,7 @@ import { AppShell } from '@/components/app-shell';
 describe('AppShell', () => {
   it('renders the authenticated navigation and sign-out control', () => {
     render(
-      <AppShell>
+      <AppShell userEmail="owner@example.test">
         <h1>Protected content</h1>
       </AppShell>,
     );
@@ -32,8 +34,10 @@ describe('AppShell', () => {
       '/app/imports',
     );
     expect(
-      screen.getByRole('button', { name: 'Sign out' }),
+      screen.getByRole('button', { name: 'Sign out or switch account' }),
     ).toBeInTheDocument();
+    expect(screen.getByText('Signed in as')).toBeInTheDocument();
+    expect(screen.getByText('owner@example.test')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Protected content' }),
     ).toBeInTheDocument();

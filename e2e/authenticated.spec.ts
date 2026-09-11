@@ -3,6 +3,18 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { Client } from 'pg';
 
+test('redirects authenticated sign-in entry points and shows the active account', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByText('Signed in as')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Sign out or switch account' }),
+  ).toBeVisible();
+});
+
 async function seedMockedReviewBatch() {
   const connectionString = process.env.DATABASE_URL;
 

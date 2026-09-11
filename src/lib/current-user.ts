@@ -15,11 +15,18 @@ export function getSessionUserId(session: Session | null) {
 }
 
 export async function requireCurrentUser() {
-  const userId = getSessionUserId(await auth());
+  const session = await auth();
+  const userId = getSessionUserId(session);
 
   if (!userId) {
     redirect('/sign-in');
   }
 
-  return { id: userId };
+  return { email: session?.user?.email ?? null, id: userId };
+}
+
+export async function redirectAuthenticatedUser() {
+  if (getSessionUserId(await auth())) {
+    redirect('/app');
+  }
 }

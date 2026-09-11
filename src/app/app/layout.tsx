@@ -8,7 +8,7 @@ export default async function AuthenticatedLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  await requireCurrentUser();
+  const user = await requireCurrentUser();
 
-  return <AppShell>{children}</AppShell>;
+  return <AppShell userEmail={user.email}>{children}</AppShell>;
 }
