@@ -105,6 +105,51 @@ afterAll(async () => {
 });
 
 describe('M4 import review and approval', () => {
+  it('orders review candidates chronologically and reorders saved date edits', async () => {
+    const user = await createUser('chronological-order');
+    const groceries = await groceriesFor(user.id);
+    const dates = [
+      '2026-09-16',
+      null,
+      '2026-09-01',
+      '2026-09-06',
+      '2026-09-01',
+      null,
+    ];
+    const batch = await createBatch(
+      user.id,
+      dates.map((date, index) => ({
+        ...selectedCandidate(groceries.id),
+        ordinal: index + 1,
+        transactionDate: date ? new Date(`${date}T00:00:00.000Z`) : null,
+      })),
+    );
+
+    const review = await getImportBatchForUser(user.id, batch.id);
+    expect(review.candidates.map((candidate) => candidate.ordinal)).toEqual([
+      3, 5, 4, 1, 2, 6,
+    ]);
+
+    const editedCandidate = batch.candidates[0]!;
+    await updateCandidateForUser(user.id, editedCandidate.id, {
+      amount: '18.75',
+      categoryId: groceries.id,
+      description: 'Reviewed market purchase',
+      notes: '',
+      transactionDate: '2026-08-31',
+      type: 'expense',
+    });
+
+    const updatedReview = await getImportBatchForUser(user.id, batch.id);
+    expect(
+      updatedReview.candidates.map((candidate) => candidate.ordinal),
+    ).toEqual([1, 3, 5, 4, 2, 6]);
+    expect(updatedReview.candidates[0]).toMatchObject({
+      id: editedCandidate.id,
+      reviewState: CandidateReviewState.SELECTED,
+    });
+  });
+
   it('rolls back every selected write when one candidate is invalid', async () => {
     const user = await createUser('atomicity');
     const groceries = await groceriesFor(user.id);

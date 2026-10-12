@@ -84,7 +84,10 @@ export async function getImportBatchForUser(userId: string, batchId: string) {
     where: { id: batchId, userId },
     include: {
       candidates: {
-        orderBy: { ordinal: 'asc' },
+        orderBy: [
+          { transactionDate: { sort: 'asc', nulls: 'last' } },
+          { ordinal: 'asc' },
+        ],
       },
     },
   });
