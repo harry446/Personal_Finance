@@ -22,7 +22,7 @@ import { logImportEvent } from '@/lib/import-observability';
 import { extractionExpiryDate } from '@/lib/import-retention';
 import { transactionDateSchema } from '@/lib/ledger-validation';
 
-export const OPENAI_EXTRACTION_MODEL = 'gpt-4.1-mini-2025-04-14';
+export const OPENAI_EXTRACTION_MODEL = 'gpt-6.1-sol';
 export const EXTRACTION_PROMPT_VERSION = '2026-09-02-v8';
 
 const MAX_AMOUNT_CENTS = 2_147_483_647;
@@ -168,6 +168,7 @@ export function createOpenAiImportExtractionProvider(options?: {
         ],
         instructions: prompt,
         model,
+        reasoning: { effort: 'medium' },
         store: false,
         text: {
           format: zodTextFormat(

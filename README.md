@@ -112,7 +112,7 @@ The application stores encrypted raw Responses output for 30 days only. Configur
 
 The chosen host must support the request-body size and synchronous execution duration required by the files a user submits. These are operational platform constraints, not a product file-size limit. Before enabling this feature for anyone beyond the owner, publish a privacy notice that explains that selected uploads are sent to OpenAI for extraction. `store: false` prevents intentional Responses state retention, but OpenAI's published data controls describe exceptional image/file abuse-monitoring retention.
 
-TODO: Experience with 5.6 Luna or 5.4 mini (maybe 5.4 mini gives better performance)?
+Import extraction uses `gpt-6.1-sol` with explicit `reasoning.effort: "medium"`, configured in `src/lib/import-extraction.ts`. The model used is recorded for each import batch; existing batches keep their historical model metadata. Deploying this setting requires no new environment variables or database migration.
 
 ## Release hardening (M7)
 
