@@ -37,11 +37,292 @@ On this single Droplet, use a root-owned systemd EnvironmentFile as the release 
    ```
 
    For later updates, only the second command is needed because the script performs its own fetch and fast-forward.
+
 5. The script uses `/var/lib/personal-finance` as the deployment user's home and npm cache location. Keep shell history, npm caches, and other service-account state outside `/srv/personal-finance`; otherwise the clean-checkout safety check will stop the release.
 6. If the script fails after stopping the service, it intentionally leaves the service stopped instead of serving a partially updated release. Read the reported error and inspect `journalctl -u personal-finance.service -n 100 --no-pager`. Database migrations are not automatically reversible; confirm migration compatibility before manually rolling application code back.
 7. On a 1 GiB Droplet, build in CI or add temporary build capacity if the production build approaches the memory limit.
 8. Confirm the public HTTPS health endpoint returns status ok.
 9. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
+
+## Authentication account investigation and removal
+
+Seeing the owner's email after attempting to choose another Google account does not by itself prove that the accounts or finance records were combined. The browser may still hold an authenticated database session for the owner. Use **Sign out or switch account**, then retry in a private browser window before changing production data.
+
+If the behavior remains unclear, SSH into the Droplet as root and open PostgreSQL through its local administrator account. This avoids placing `DATABASE_URL` or the database password on the command line:
+
+```bash
+runuser --user postgres -- psql --dbname personal_finance
+```
+
+Set psql variables for the two exact email addresses, then run the read-only inspection. Do not paste session tokens, OAuth tokens, or account-provider IDs into an incident record.
+
+```sql
+\set ON_ERROR_STOP on
+\set owner_email 'owner@example.com'
+\set test_email 'test@example.com'
+
+SELECT
+  u.id,
+  u.email,
+  u.created_at,
+  (SELECT count(*) FROM accounts a WHERE a.user_id = u.id) AS account_count,
+  (SELECT count(*) FROM sessions s WHERE s.user_id = u.id AND s.expires > now()) AS active_session_count,
+  (SELECT count(*) FROM categories c WHERE c.user_id = u.id) AS category_count,
+  (SELECT count(*) FROM transactions t WHERE t.user_id = u.id) AS transaction_count,
+  (SELECT count(*) FROM import_batches i WHERE i.user_id = u.id) AS import_batch_count,
+  (SELECT count(*) FROM budgets b WHERE b.user_id = u.id) AS budget_count
+FROM users u
+WHERE lower(u.email) IN (lower(:'owner_email'), lower(:'test_email'))
+ORDER BY lower(u.email);
+
+SELECT
+  u.email,
+  a.provider,
+  left(md5(a.provider_account_id), 12) AS provider_account_fingerprint
+FROM accounts a
+JOIN users u ON u.id = a.user_id
+WHERE lower(u.email) IN (lower(:'owner_email'), lower(:'test_email'))
+ORDER BY lower(u.email), a.provider, provider_account_fingerprint;
+```
+
+Interpret the result before deleting anything:
+
+- Only the owner row exists with one Google account: the test account was not saved; reset the owner's sessions instead of deleting the owner.
+- Two user rows exist and each has exactly one Google account fingerprint: the inspected database identities are separate. A retained browser session is a possible cause of the unexpected displayed email; verify from a new private browser session.
+- More than one Google fingerprint is attached to one user, an email is attached unexpectedly, or ownership counts look wrong: stop and investigate before deleting anything.
+
+### Multiple Google accounts linked to one user
+
+The installed NextAuth v4 OAuth callback links a previously unlinked provider account to the currently authenticated user when an app session exists. Choosing another Google account before signing out can therefore create an unintended login association. Subsequent sign-ins with that Google identity resolve to the linked user even from a fresh browser. A sign-out control does not repair existing links, and deleting a separate test user will not remove a link attached to the owner.
+
+First identify the extra `accounts` row. This read-only query decodes stored Google ID-token payloads locally and prints only account row IDs, email claims, hashed provider IDs, and whether the subject matches. It never prints a token. The decoded claims are historical metadata; this query does not validate the signature, expiry, or current Google identity. If a token is missing, malformed, or its subject does not match, stop and investigate instead of guessing which link to remove.
+
+```sql
+WITH payloads AS (
+  SELECT a.id, a.user_id, a.provider_account_id,
+         split_part(a.id_token, '.', 2) AS payload
+  FROM accounts a
+  JOIN users u ON u.id = a.user_id
+  WHERE a.provider = 'google'
+    AND lower(u.email) = lower(:'owner_email')
+), claims AS (
+  SELECT id, user_id, provider_account_id,
+         CASE WHEN payload IS NOT NULL AND payload <> '' THEN
+           convert_from(
+             decode(
+               translate(payload, '-_', '+/') ||
+               repeat('=', (4 - length(payload) % 4) % 4),
+               'base64'
+             ), 'UTF8'
+           )::jsonb
+         END AS token_claims
+  FROM payloads
+)
+SELECT c.id AS account_row_id,
+       u.email AS linked_user_email,
+       left(md5(c.provider_account_id), 12) AS account_fingerprint,
+       c.token_claims ->> 'email' AS google_email_at_link_time,
+       (c.token_claims ->> 'sub') = c.provider_account_id AS subject_matches
+FROM claims c
+JOIN users u ON u.id = c.user_id
+ORDER BY account_fingerprint;
+```
+
+Compare the claimed emails with the Google accounts actually used in the test. Confirm the extra row ID and fingerprint and which intended owner link must remain. If the historical claims are insufficient, verify the identity with Google before proceeding. Never unlink an account based only on row order or count.
+
+Once the unintended link is positively identified, exit psql with `\q`. Create a unique backup file with restricted permissions and check that its archive index is readable. This check does not replace a full restore rehearsal. Run these commands at the root shell and proceed only if both backup commands succeed:
+
+```bash
+repair_backup=$(runuser --user postgres -- mktemp /var/lib/postgresql/pf-account-repair.XXXXXX.dump)
+runuser --user postgres -- pg_dump --format=custom --file="$repair_backup" personal_finance
+runuser --user postgres -- pg_restore --list "$repair_backup" >/dev/null
+printf 'Backup: %s\n' "$repair_backup"
+
+systemctl stop personal-finance.service
+runuser --user postgres -- psql --dbname personal_finance
+```
+
+Set the confirmed owner email, extra account row ID and fingerprint, and the correct account row ID that must remain. The transaction deletes only the extra login link and checks that the correct Google link still exists for the same user:
+
+```sql
+\set ON_ERROR_STOP on
+\set owner_email 'owner@example.com'
+\set extra_account_id 'REPLACE_WITH_EXTRA_ACCOUNT_ROW_ID'
+\set extra_fingerprint 'REPLACE_WITH_EXTRA_FINGERPRINT'
+\set keep_account_id 'REPLACE_WITH_CORRECT_ACCOUNT_ROW_ID'
+
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+
+DELETE FROM accounts a
+USING users u
+WHERE a.user_id = u.id
+  AND u.email = :'owner_email'
+  AND a.provider = 'google'
+  AND a.id = :'extra_account_id'
+  AND left(md5(a.provider_account_id), 12) = :'extra_fingerprint'
+  AND EXISTS (
+    SELECT 1 FROM accounts kept
+    WHERE kept.id = :'keep_account_id'
+      AND kept.id <> a.id
+      AND kept.user_id = u.id
+      AND kept.provider = 'google'
+  )
+RETURNING a.id, left(md5(a.provider_account_id), 12) AS removed_fingerprint;
+```
+
+Confirm the command returned exactly the extra account row and reports `DELETE 1` before proceeding. If it did not, enter `ROLLBACK;`. If it did, invalidate the owner's sessions and inspect the remaining Google links:
+
+```sql
+DELETE FROM sessions
+WHERE user_id = (SELECT id FROM users WHERE email = :'owner_email');
+
+SELECT a.id, u.email, a.provider,
+       left(md5(a.provider_account_id), 12) AS remaining_fingerprint
+FROM accounts a
+JOIN users u ON u.id = a.user_id
+WHERE u.email = :'owner_email' AND a.provider = 'google';
+```
+
+Enter `COMMIT;` only if the intended owner link remains and the unintended one is absent. Otherwise, or after any SQL error, enter `ROLLBACK;`. Do not delete either `users` row to fix an account link.
+
+After committing, exit with `\q` and run `systemctl start personal-finance.service`. This preserves user rows and financial data; recovery of the removed association requires the backup or deliberate account linking. Test the owner and the previously mislinked Google account in separate new browser sessions. The unlinked Google identity can create its own user on its next successful sign-in. Existing categories and records remain with their original user; unlinking does not transfer them.
+
+To invalidate every current browser session for one confirmed user without deleting categories or finance data, remain in psql and run:
+
+```sql
+BEGIN;
+DELETE FROM sessions
+WHERE user_id = (
+  SELECT id FROM users WHERE lower(email) = lower(:'owner_email')
+);
+COMMIT;
+```
+
+Use `test_email` instead of `owner_email` only when resetting the test user's sessions. Exit with `\q`, then sign in again from a private window and verify the displayed email before creating or changing data.
+
+Only delete a test user when the read-only inspection confirms the exact test email and all of that user's categories, transactions, imports, and budgets are intentionally disposable. First exit psql with `\q` and create a recoverable database backup:
+
+```bash
+runuser --user postgres -- pg_dump \
+  --format=custom \
+  --file=/var/lib/postgresql/personal-finance-before-test-user-removal.dump \
+  personal_finance
+
+runuser --user postgres -- pg_restore \
+  --list \
+  /var/lib/postgresql/personal-finance-before-test-user-removal.dump
+```
+
+Reopen psql, set `test_email` again, and execute the deletion as one transaction. Import children are removed first, followed by transactions, budgets, and categories, so restrictive category and saved-transaction foreign keys cannot leave a partial deletion.
+
+```sql
+\set ON_ERROR_STOP on
+\set test_email 'test@example.com'
+
+SELECT id, email, created_at
+FROM users
+WHERE lower(email) = lower(:'test_email');
+
+BEGIN;
+
+DELETE FROM import_batches
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM transactions
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM budgets
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM categories
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM sessions
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM accounts
+WHERE user_id IN (
+  SELECT id FROM users WHERE lower(email) = lower(:'test_email')
+);
+
+DELETE FROM verification_tokens
+WHERE lower(identifier) = lower(:'test_email');
+
+DELETE FROM users
+WHERE lower(email) = lower(:'test_email')
+RETURNING id, email;
+```
+
+Inspect the final `RETURNING` row. Enter `COMMIT;` only if it returns exactly the intended test user; otherwise enter `ROLLBACK;`. After committing, rerun the read-only inspection, exit with `\q`, and verify both Google accounts in separate private browser profiles. Never delete the owner row as a shortcut for a session problem.
+
+## Reset all application data
+
+Use this procedure only when every user's application data is intentionally disposable. It permanently clears all current application tables, including users, Google account links, sessions, categories, transactions, budgets, imports, extraction logs, and verification tokens. The database schema and `_prisma_migrations` remain intact. No rebuild, migration, or redeployment is needed. This procedure does not remove existing backup archives.
+
+SSH into the Droplet as root. Stop the application to prevent concurrent sign-ins or writes, then open the exact application database:
+
+```bash
+systemctl stop personal-finance.service
+runuser --user postgres -- psql --dbname personal_finance
+```
+
+Check the target before executing the reset:
+
+```sql
+SELECT current_database();
+```
+
+Proceed only if it returns `personal_finance`. Then run:
+
+```sql
+\set ON_ERROR_STOP on
+
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+
+TRUNCATE TABLE
+  public.users,
+  public.accounts,
+  public.sessions,
+  public.verification_tokens,
+  public.categories,
+  public.transactions,
+  public.import_batches,
+  public.candidate_transactions,
+  public.extraction_logs,
+  public.budgets,
+  public.budget_configurations;
+
+COMMIT;
+
+SELECT
+  (SELECT count(*) FROM public.users) AS users,
+  (SELECT count(*) FROM public.accounts) AS accounts,
+  (SELECT count(*) FROM public.sessions) AS sessions;
+```
+
+Expect `TRUNCATE TABLE`, `COMMIT`, and zero for each count. All related application tables are named explicitly so the reset does not cascade into unrelated tables. If any SQL command errors, enter `ROLLBACK;`, exit psql, restart the application, and investigate before retrying. Before committing, `ROLLBACK` cancels the reset; after committing, recovery requires a database backup.
+
+Exit with `\q`, then restart and check the application:
+
+```bash
+systemctl start personal-finance.service
+curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 2 \
+  http://127.0.0.1:3000/api/health
+```
+
+Sign in from a new browser session. Each successful first Google sign-in creates a new user and default categories. When testing account isolation, use separate browser profiles or sign out through **Sign out or switch account** before signing in with another identity. Returning to the landing page alone does not sign out.
 
 ## Backup and restore
 
