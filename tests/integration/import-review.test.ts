@@ -20,7 +20,11 @@ import {
   setCandidateReviewStateForUser,
   updateCandidateForUser,
 } from '@/lib/import-review';
-import { archiveCategoryForUser, OwnedRecordNotFoundError } from '@/lib/ledger';
+import {
+  archiveCategoryForUser,
+  deleteTransactionForUser,
+  OwnedRecordNotFoundError,
+} from '@/lib/ledger';
 
 const createdUserIds: string[] = [];
 
@@ -268,6 +272,37 @@ describe('M4 import review and approval', () => {
     expect(
       (await listReviewBatchesForUser(user.id)).map((item) => item.id),
     ).not.toContain(batch.id);
+  });
+
+  it('deletes an imported ledger transaction while keeping its approval history', async () => {
+    const user = await createUser('delete-imported-transaction');
+    const groceries = await groceriesFor(user.id);
+    const batch = await createBatch(user.id, [selectedCandidate(groceries.id)]);
+    const candidate = batch.candidates[0]!;
+    const { savedTransactions } = await approveImportBatchForUser(
+      user.id,
+      batch.id,
+    );
+    const savedTransaction = savedTransactions[0]!;
+
+    await deleteTransactionForUser(user.id, savedTransaction.id);
+
+    await expect(
+      db.transaction.findUnique({ where: { id: savedTransaction.id } }),
+    ).resolves.toBeNull();
+    await expect(
+      getImportBatchForUser(user.id, batch.id),
+    ).resolves.toMatchObject({
+      approvedCount: 1,
+      status: ImportBatchStatus.APPROVED,
+      candidates: [
+        {
+          id: candidate.id,
+          reviewState: CandidateReviewState.APPROVED,
+          savedTransactionId: null,
+        },
+      ],
+    });
   });
 
   it('finalizes an all-unselected batch without ledger writes', async () => {

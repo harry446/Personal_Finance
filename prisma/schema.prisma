@@ -175,7 +175,7 @@ model CandidateTransaction {
   updatedAt             DateTime             @updatedAt @map("updated_at")
   importBatch           ImportBatch          @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
   category              Category?            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  savedTransaction      Transaction?         @relation("CandidateSavedTransaction", fields: [savedTransactionId], references: [id], onDelete: Restrict)
+  savedTransaction      Transaction?         @relation("CandidateSavedTransaction", fields: [savedTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([importBatchId, ordinal])
   @@index([importBatchId, reviewState])
