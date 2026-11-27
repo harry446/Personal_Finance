@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   quality:
@@ -44,3 +45,49 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  deploy:
+    needs: quality
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      vars.PRODUCTION_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      id-token: write
+    concurrency:
+      group: personal-finance-production
+      cancel-in-progress: false
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:finance-ci
+
+      - name: Deploy the tested commit over SSH
+        env:
+          DROPLET_SSH_HOST: ${{ vars.DROPLET_SSH_HOST }}
+          DROPLET_SSH_KNOWN_HOSTS: ${{ vars.DROPLET_SSH_KNOWN_HOSTS }}
+          DROPLET_SSH_PRIVATE_KEY: ${{ secrets.DROPLET_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          : "${DROPLET_SSH_HOST:?Set the production Droplet Tailscale hostname or IP}"
+          : "${DROPLET_SSH_KNOWN_HOSTS:?Set the verified Droplet SSH host key}"
+          : "${DROPLET_SSH_PRIVATE_KEY:?Set the production deployment SSH key}"
+
+          umask 077
+          ssh_dir=$(mktemp -d)
+          trap 'rm -f "$ssh_dir/key" "$ssh_dir/known_hosts"; rmdir "$ssh_dir"' EXIT
+          printf '%s\n' "$DROPLET_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DROPLET_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          unset DROPLET_SSH_PRIVATE_KEY
+
+          ssh -T -i "$ssh_dir/key" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$ssh_dir/known_hosts" \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            -- "personal-finance-deploy@$DROPLET_SSH_HOST" "$GITHUB_SHA"

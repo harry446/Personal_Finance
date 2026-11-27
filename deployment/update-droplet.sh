@@ -32,8 +32,11 @@ fail() {
 on_error() {
   local exit_code=$?
   trap - ERR
-  stop_partial_deployment
-  printf '\nERROR: Deployment command failed with exit code %s. The application service has been stopped.\n' "$exit_code" >&2
+  printf '\nERROR: Deployment command failed with exit code %s.\n' "$exit_code" >&2
+  if [[ "$deployment_started" == true ]]; then
+    stop_partial_deployment
+    printf 'The application service has been stopped.\n' >&2
+  fi
   exit "$exit_code"
 }
 
@@ -68,7 +71,15 @@ if [[ "${EUID}" -ne 0 ]]; then
   fail "Run this script as root."
 fi
 
-for command in git runuser systemctl systemd-run curl install id sleep; do
+expected_revision=""
+if [[ $# -eq 1 && "$1" == --ci ]]; then
+  expected_revision="${SSH_ORIGINAL_COMMAND:-}"
+  [[ "$expected_revision" =~ ^[0-9a-f]{40}$ ]] || fail "Expected a full Git commit SHA from CI."
+elif [[ $# -ne 0 ]]; then
+  fail "Usage: $0 [--ci]"
+fi
+
+for command in git runuser systemctl systemd-run curl install id sleep flock; do
   command -v "$command" >/dev/null 2>&1 || fail "Required command is missing: $command"
 done
 
@@ -77,6 +88,10 @@ done
 [[ -d "$APP_DIR/.git" ]] || fail "Git checkout not found at $APP_DIR"
 [[ -f "$ENV_FILE" ]] || fail "Environment file not found at $ENV_FILE"
 id "$APP_USER" >/dev/null 2>&1 || fail "Deployment user does not exist: $APP_USER"
+
+exec 9>/run/personal-finance-deploy.lock
+flock -n 9 || fail "A Personal Finance deployment is already running."
+
 install -d -o "$APP_USER" -g "$APP_GROUP" -m 0750 "$APP_HOME"
 
 current_branch="$(run_as_app git -C "$APP_DIR" branch --show-current)"
@@ -90,20 +105,24 @@ fi
 
 log "Fetching $REMOTE/$BRANCH"
 run_as_app git -C "$APP_DIR" fetch --prune "$REMOTE" "$BRANCH"
+target_revision="$(run_as_app git -C "$APP_DIR" rev-parse "$REMOTE/$BRANCH")"
 
-if ! run_as_app git -C "$APP_DIR" merge-base --is-ancestor HEAD "$REMOTE/$BRANCH"; then
+if [[ -n "$expected_revision" && "$target_revision" != "$expected_revision" ]]; then
+  fail "CI tested $expected_revision, but $REMOTE/$BRANCH now points to $target_revision. Run CI on the current main commit."
+fi
+
+if ! run_as_app git -C "$APP_DIR" merge-base --is-ancestor HEAD "$target_revision"; then
   fail "The Droplet checkout cannot fast-forward to $REMOTE/$BRANCH. Resolve the branch divergence manually."
 fi
 
 old_revision="$(run_as_app git -C "$APP_DIR" rev-parse --short HEAD)"
-target_revision="$(run_as_app git -C "$APP_DIR" rev-parse --short "$REMOTE/$BRANCH")"
 
 log "Stopping $SERVICE"
 systemctl stop "$SERVICE"
 deployment_started=true
 
-log "Fast-forwarding $old_revision to $target_revision"
-run_as_app git -C "$APP_DIR" merge --ff-only "$REMOTE/$BRANCH"
+log "Fast-forwarding $old_revision to ${target_revision:0:12}"
+run_as_app git -C "$APP_DIR" merge --ff-only "$target_revision"
 
 log "Installing locked dependencies"
 run_with_secrets dependencies /usr/bin/npm ci --include=dev

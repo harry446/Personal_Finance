@@ -44,6 +44,52 @@ On this single Droplet, use a root-owned systemd EnvironmentFile as the release 
 8. Confirm the public HTTPS health endpoint returns status ok.
 9. Run the two-account release smoke checklist in docs/M7_RELEASE_CHECKLIST.md and record only date, release revision, environment URL, and pass/fail. Never record session cookies, OAuth tokens, statement data, or secrets.
 
+## Automated releases
+
+The CI workflow can deploy successful `main` pushes or runs started from **Actions → CI → Run workflow** on `main`. Both run the `quality` job first. The deploy job uses Tailscale to reach the Droplet over SSH and passes the tested commit to the existing release script. If `origin/main` has moved since the CI run started, the script exits before stopping the service. GitHub serializes deploy jobs, and the Droplet rejects overlapping manual and automated deployments.
+
+### Protect `main` and create the production environment
+
+1. In the GitHub repository settings, protect `main`. Require a pull request with zero required approvals, require the `quality` status check, and apply the rule to administrators. Keep force pushes and branch deletion disabled.
+2. Create the `production` Actions environment and restrict its deployment branches to `main`. Leave required reviewers disabled for unattended deployment.
+3. Keep the repository Actions variable `PRODUCTION_DEPLOY_ENABLED` unset until the Droplet and environment are ready. The deploy job runs only when this variable is `true`.
+
+### Connect the Droplet and GitHub Actions
+
+1. Join the Droplet to your Tailscale network with the `tag:finance-droplet` tag. Keep the public SSH firewall rule restricted to your administration IP. If UFW filters SSH on the Droplet, allow SSH on the `tailscale0` interface.
+2. Create `tag:finance-ci` and allow it to reach `tag:finance-droplet` on TCP port 22 in your Tailscale access policy. Check that existing grants don't give `tag:finance-ci` broader access.
+3. Create a Tailscale [federated identity](https://tailscale.com/docs/features/workload-identity-federation) for GitHub Actions with **Auth Keys → Write** and `tag:finance-ci`. Restrict the subject to this repository's `production` environment, using the repository's [GitHub OIDC subject format](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-a-specific-environment).
+4. In the GitHub `production` environment, set `TS_CLIENT_ID` and `TS_AUDIENCE` to the federated identity's client ID and audience. Set `DROPLET_SSH_HOST` to the Droplet's Tailscale hostname or IP. Set `DROPLET_SSH_KNOWN_HOSTS` to a known-hosts line containing that exact host and the SSH host public key verified on the Droplet, typically from `/etc/ssh/ssh_host_ed25519_key.pub`. The line should look like `finance.example.ts.net ssh-ed25519 AAAA...`.
+
+### Install the restricted SSH command
+
+1. Generate a dedicated Ed25519 key pair for unattended deployment. Save the private key as the GitHub `production` environment secret `DROPLET_SSH_PRIVATE_KEY`.
+2. After the workflow PR is merged, run the normal manual release once to put the updated script on the Droplet. As root, create the dedicated account and install a root-owned copy of the reviewed release script:
+
+   ```bash
+   adduser --disabled-password --gecos '' personal-finance-deploy
+   install -o personal-finance-deploy -g personal-finance-deploy -m 0700 -d /home/personal-finance-deploy/.ssh
+   install -o root -g root -m 0755 /srv/personal-finance/deployment/update-droplet.sh /usr/local/sbin/personal-finance-deploy
+   ```
+
+3. Add this line to `/home/personal-finance-deploy/.ssh/authorized_keys`, replacing `ssh-ed25519 AAAA...` with the deployment public key. Set the file owner to `personal-finance-deploy` and its mode to `0600`.
+
+   ```text
+   restrict,command="/usr/bin/sudo -n /usr/local/sbin/personal-finance-deploy --ci" ssh-ed25519 AAAA...
+   ```
+
+4. Run `visudo -f /etc/sudoers.d/personal-finance-deploy` and add these rules. They preserve the SSH-supplied commit for this command and give the deployment account permission to run only the installed script in CI mode.
+
+   ```sudoers
+   Cmnd_Alias PERSONAL_FINANCE_DEPLOY = /usr/local/sbin/personal-finance-deploy --ci
+   Defaults!PERSONAL_FINANCE_DEPLOY env_keep += "SSH_ORIGINAL_COMMAND"
+   personal-finance-deploy ALL=(root) NOPASSWD: PERSONAL_FINANCE_DEPLOY
+   ```
+
+5. Set the repository Actions variable `PRODUCTION_DEPLOY_ENABLED` to `true`, then run **Actions → CI → Run workflow** on `main`. Confirm the deploy step reports the expected revision and a healthy service, then check the public HTTPS health endpoint. To pause automated releases, remove the variable or set it to `false`.
+
+When `deployment/update-droplet.sh` changes, reinstall the reviewed root-owned copy on the Droplet. Keep the installed script separate from the application checkout so the deployment account can't modify the command it can run with `sudo`.
+
 ## Authentication account investigation and removal
 
 Seeing the owner's email after attempting to choose another Google account does not by itself prove that the accounts or finance records were combined. The browser may still hold an authenticated database session for the owner. Use **Sign out or switch account**, then retry in a private browser window before changing production data.
