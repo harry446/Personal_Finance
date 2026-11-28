@@ -151,17 +151,35 @@ export default async function globalSetup() {
 
   return async () => {
     const cleanupClient = new Client({ connectionString });
+    const userIds = [userId, secondUserId];
 
-    await cleanupClient.connect();
-    await cleanupClient
-      .query('DELETE FROM "users" WHERE "id" = ANY($1::uuid[])', [
-        [userId, secondUserId],
-      ])
-      .catch(() => undefined);
-    await cleanupClient.end();
-    await Promise.all([
-      rm(authStatePath, { force: true }),
-      rm(secondAuthStatePath, { force: true }),
-    ]);
+    try {
+      await cleanupClient.connect();
+      await cleanupClient.query('BEGIN');
+      // Remove records with restricted category references before deleting users.
+      await cleanupClient.query(
+        'DELETE FROM "import_batches" WHERE "user_id" = ANY($1::text[])',
+        [userIds],
+      );
+      await cleanupClient.query(
+        'DELETE FROM "transactions" WHERE "user_id" = ANY($1::text[])',
+        [userIds],
+      );
+      await cleanupClient.query(
+        'DELETE FROM "budgets" WHERE "user_id" = ANY($1::text[])',
+        [userIds],
+      );
+      await cleanupClient.query(
+        'DELETE FROM "users" WHERE "id" = ANY($1::text[])',
+        [userIds],
+      );
+      await cleanupClient.query('COMMIT');
+    } finally {
+      await Promise.all([
+        cleanupClient.end(),
+        rm(authStatePath, { force: true }),
+        rm(secondAuthStatePath, { force: true }),
+      ]);
+    }
   };
 }

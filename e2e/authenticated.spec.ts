@@ -117,6 +117,7 @@ async function readMockedReviewCandidate(candidateId: string) {
 test('creates a manual expense and reports safe field validation', async ({
   page,
 }) => {
+  const description = `FreshCo ${randomUUID().slice(0, 8)}`;
   await page.goto('/app/transactions');
 
   await page
@@ -126,16 +127,18 @@ test('creates a manual expense and reports safe field validation', async ({
   await expect(
     page.getByRole('heading', { name: 'Add transaction' }),
   ).toBeVisible();
-  await page.getByLabel('Description or merchant').fill('FreshCo');
+  await page.getByLabel('Description or merchant').fill(description);
   await page
     .locator('select[name="categoryId"]')
     .selectOption({ label: 'Groceries' });
   await page.getByLabel('Amount (CAD)').fill('84.16');
   await page.getByRole('button', { name: 'Save transaction' }).click();
 
-  await expect(page.getByText('FreshCo')).toBeVisible();
+  const transactionRow = page.getByRole('row').filter({
+    has: page.getByRole('cell', { name: description, exact: true }),
+  });
   await expect(
-    page.locator('tr').filter({ hasText: 'FreshCo' }).getByText('-$84.16'),
+    transactionRow.getByRole('cell', { name: '-$84.16', exact: true }),
   ).toBeVisible();
 
   await page
