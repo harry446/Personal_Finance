@@ -155,6 +155,9 @@ test('M7 release smoke: isolated accounts, human import approval, accessible res
   });
 
   await page.goto('/app/budgets');
+  await expect(
+    page.getByRole('heading', { name: 'Budget mode', exact: true }),
+  ).toBeVisible();
   const enableBudgetMode = page.getByRole('button', {
     name: 'Turn budget mode on',
   });
