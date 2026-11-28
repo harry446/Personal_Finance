@@ -6,10 +6,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { Client } from 'pg';
 
 const secondAuthStatePath = path.resolve('e2e/.auth/second-user.json');
+const dashboardMonth = '2026-09';
 
 test.use({ viewport: { height: 1000, width: 1440 } });
 
-async function seedOwnerReviewBatch() {
+async function seedOwnerReviewBatch(description: string) {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
@@ -55,10 +56,10 @@ async function seedOwnerReviewBatch() {
         candidateId,
         batchId,
         1,
-        '2026-09-05',
+        `${dashboardMonth}-05`,
         'expense',
         1288,
-        'M7 reviewed import expense',
+        description,
         categoryId,
         'pending',
       ],
@@ -101,6 +102,7 @@ async function createManualExpense(page: Page, description: string) {
     .getByRole('button', { name: /add transaction/i })
     .first()
     .click();
+  await page.getByLabel('Date', { exact: true }).fill(`${dashboardMonth}-06`);
   await page.getByLabel('Description or merchant').fill(description);
   await page
     .locator('select[name="categoryId"]')
@@ -120,9 +122,13 @@ test('M7 release smoke: isolated accounts, human import approval, accessible res
   browser,
   page,
 }, testInfo) => {
-  await createManualExpense(page, 'M7 account A expense');
+  const attemptId = randomUUID().slice(0, 8);
+  const accountAExpense = `M7 account A expense ${attemptId}`;
+  const accountBExpense = `M7 account B expense ${attemptId}`;
+  const importedExpense = `M7 reviewed import expense ${attemptId}`;
+  await createManualExpense(page, accountAExpense);
 
-  const { batchId, candidateId } = await seedOwnerReviewBatch();
+  const { batchId, candidateId } = await seedOwnerReviewBatch(importedExpense);
   await page.goto('/app/imports?batch=' + batchId);
   await expect(
     page.getByRole('heading', { name: 'Recommended transactions' }),
@@ -140,15 +146,18 @@ test('M7 release smoke: isolated accounts, human import approval, accessible res
     .poll(() => readCandidateReviewState(candidateId))
     .toBe('approved');
 
-  await page.goto('/app?month=2026-09');
-  await expect(page.getByText('M7 account A expense')).toBeVisible();
-  await expect(page.getByText('M7 reviewed import expense')).toBeVisible();
+  await page.goto(`/app?month=${dashboardMonth}`);
+  await expect(page.getByText(accountAExpense, { exact: true })).toBeVisible();
+  await expect(page.getByText(importedExpense, { exact: true })).toBeVisible();
   await page.screenshot({
     fullPage: true,
     path: testInfo.outputPath('m7-dashboard-desktop.png'),
   });
 
   await page.goto('/app/budgets');
+  await expect(
+    page.getByRole('heading', { name: 'Budget mode', exact: true }),
+  ).toBeVisible();
   const enableBudgetMode = page.getByRole('button', {
     name: 'Turn budget mode on',
   });
@@ -187,15 +196,13 @@ test('M7 release smoke: isolated accounts, human import approval, accessible res
   const secondPage = await secondContext.newPage();
 
   try {
-    await secondPage.goto('/app?month=2026-09');
-    await expect(secondPage.getByText('M7 account A expense')).toHaveCount(0);
-    await expect(
-      secondPage.getByText('M7 reviewed import expense'),
-    ).toHaveCount(0);
-    await createManualExpense(secondPage, 'M7 account B expense');
-    await secondPage.goto('/app?month=2026-09');
-    await expect(secondPage.getByText('M7 account B expense')).toBeVisible();
-    await expect(secondPage.getByText('M7 account A expense')).toHaveCount(0);
+    await secondPage.goto(`/app?month=${dashboardMonth}`);
+    await expect(secondPage.getByText(accountAExpense)).toHaveCount(0);
+    await expect(secondPage.getByText(importedExpense)).toHaveCount(0);
+    await createManualExpense(secondPage, accountBExpense);
+    await secondPage.goto(`/app?month=${dashboardMonth}`);
+    await expect(secondPage.getByText(accountBExpense)).toBeVisible();
+    await expect(secondPage.getByText(accountAExpense)).toHaveCount(0);
     await expect(
       secondPage
         .locator('html')
